@@ -592,6 +592,26 @@ const remainingRouter: AppRouteRecordRaw[] = [
     ]
   },
   {
+    path: '/project',
+    component: Layout,
+    name: 'ProjectCenter',
+    meta: { hidden: true },
+    children: [
+      {
+        path: 'projectstage/detail/:id',
+        name: 'ProjectStageDetail',
+        meta: {
+          title: '项目详情',
+          noCache: true,
+          hidden: true,
+          canTo: true,
+          activeMenu: '/project/projectstage'
+        },
+        component: () => import('@/views/project/projectstage/detail.vue')
+      }
+    ]
+  },
+  {
     path: '/ai',
     component: Layout,
     name: 'Ai',

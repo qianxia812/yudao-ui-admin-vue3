@@ -206,7 +206,7 @@
 
 <script setup lang="ts">
 import { dateFormatter } from '@/utils/formatTime'
-import { PROJECT_STATUS, PROJECT_STATUS_OPTIONS, STAGE_STATUS_OPTIONS } from '@/utils/constants'
+import { PROJECT_STATUS_OPTIONS, STAGE_STATUS_OPTIONS } from '@/utils/constants'
 import { StageApi, type StagePageReqVO, type StageVO } from '@/api/project/projectstage'
 import StageForm from './StageForm.vue'
 import type { FormInstance, FormRules, TagProps } from 'element-plus'
@@ -299,65 +299,8 @@ const formatRelationType = (relationType?: string) => {
 }
 
 const { push } = useRouter()
-const getProcessDefinitionTarget = (row: StageVO) => {
-  const processInstanceCandidates = [
-    row.processInstanceId,
-    row.latestProcessInstanceId,
-    row.currentProcessInstanceId,
-    row.nextProcessInstanceId
-  ]
-  const idCandidates = [
-    row.processDefinitionId,
-    row.latestProcessDefinitionId,
-    row.currentProcessDefinitionId,
-    row.nextProcessDefinitionId
-  ]
-  const keyCandidates = [
-    row.processDefinitionKey,
-    row.latestProcessDefinitionKey,
-    row.currentProcessDefinitionKey,
-    row.nextProcessDefinitionKey
-  ]
-  const processDefinitionId = idCandidates.find(
-    (item) => item !== undefined && item !== null && `${item}`.trim()
-  )
-  const processDefinitionKey = keyCandidates.find((item) => item && item.trim())
-  const processInstanceId = processInstanceCandidates.find(
-    (item) => item !== undefined && item !== null && `${item}`.trim()
-  )
-  return {
-    processInstanceId: processInstanceId ? String(processInstanceId) : undefined,
-    processDefinitionId: processDefinitionId ? String(processDefinitionId) : undefined,
-    processDefinitionKey: processDefinitionKey ? String(processDefinitionKey) : undefined
-  }
-}
-
-const goProcessCreatePage = async (target?: {
-  processDefinitionId?: string
-  processDefinitionKey?: string
-  processInstanceId?: string
-  projectId?: number
-}) => {
-  const query =
-    target?.processDefinitionId || target?.processDefinitionKey || target?.processInstanceId
-      ? {
-          processDefinitionId: target?.processDefinitionId,
-          processDefinitionKey: target?.processDefinitionKey,
-          processInstanceId: target?.processInstanceId,
-          projectId: target?.projectId ? String(target.projectId) : undefined
-        }
-      : undefined
-  await push({ name: 'BpmProcessInstanceDirectCreate', query })
-}
 
 const openDetail = async (row: StageVO) => {
-  if (normalizeStatus(row.projectStatus) === PROJECT_STATUS.NOT_START) {
-    await goProcessCreatePage({
-      ...getProcessDefinitionTarget(row),
-      projectId: Number(row.projectId ?? row.id)
-    })
-    return
-  }
   const id = Number(row.projectId ?? row.id)
   if (!id) {
     message.warning('未获取到项目 ID，无法打开详情')

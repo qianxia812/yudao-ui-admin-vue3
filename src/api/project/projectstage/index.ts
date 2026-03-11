@@ -14,6 +14,23 @@ export interface StagePageReqVO {
   latestEndTime?: string[]
 }
 
+/** 当前审批人（接口 assignee 字段） */
+export interface StageAssigneeVO {
+  id?: number
+  nickname?: string
+  status?: number
+  deptId?: number
+  postIds?: number[]
+  mobile?: string
+  avatar?: string
+}
+
+/** 当前任务信息（接口 taskInfos 字段） */
+export interface StageTaskInfoVO {
+  taskId?: string
+  assignee?: string | number
+}
+
 /** 项目阶段列表项 */
 export interface StageVO {
   id?: number
@@ -42,6 +59,8 @@ export interface StageVO {
   relationTypeLabel?: string
   latestStartTime?: string
   latestEndTime?: string | null
+  assignee?: StageAssigneeVO[] | null
+  taskInfos?: StageTaskInfoVO[] | null
   projectPrice?: number | string
   projectQuote?: number | string
   remark?: string

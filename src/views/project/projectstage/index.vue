@@ -144,7 +144,7 @@
       </el-table-column>
       <el-table-column label="当前审批人" align="center" min-width="115px">
         <template #default="{ row }">
-          {{ row.latestApproverUserName || '--' }}
+          {{ getCurrentApproverText(row) }}
         </template>
       </el-table-column>
       <el-table-column label="与我相关" align="center" min-width="110px">
@@ -290,6 +290,18 @@ const getProjectStatusType = (value?: number | string | null) =>
   getStatusType(projectStatusOptions, value)
 const getStageStatusLabel = (value?: number | string | null) => getStatusLabel(stageStatusOptions, value)
 const getStageStatusType = (value?: number | string | null) => getStatusType(stageStatusOptions, value)
+
+const getCurrentApproverText = (row: StageVO) => {
+  const assigneeList = Array.isArray(row.assignee) ? row.assignee : []
+  const assigneeNames = assigneeList
+    .map((item) => item?.nickname?.trim())
+    .filter((name): name is string => !!name)
+  if (assigneeNames.length) {
+    return Array.from(new Set(assigneeNames)).join('、')
+  }
+  const fallback = String(row.latestApproverUserName || '').trim()
+  return fallback || '--'
+}
 
 const formatRelationType = (relationType?: string) => {
   if (!relationType) {

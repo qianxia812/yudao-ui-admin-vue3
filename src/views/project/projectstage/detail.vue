@@ -14,13 +14,18 @@
 
     <div v-if="groupList.length" class="group-tabs">
       <div
-        v-for="item in groupList"
+        v-for="(item, index) in groupList"
         :key="item.stageGroupCode"
         class="group-tab"
-        :class="{ active: selectedGroupCode === item.stageGroupCode }"
+        :class="getGroupTabClass(item, index)"
         @click="handleGroupClick(item.stageGroupCode)"
       >
-        <span class="group-sort">{{ getGroupSortLabel(item.sort) }}</span>
+        <div class="group-node">
+          <span class="group-icon">
+            <Icon :icon="getGroupIcon(index)" />
+          </span>
+          <span class="group-sort">{{ getGroupSortLabel(item.sort || index + 1) }}</span>
+        </div>
         <span class="group-name">{{ item.stageGroup || '--' }}</span>
       </div>
     </div>
@@ -32,9 +37,8 @@
     <el-empty v-else-if="!groupList.length || !timelineList.length" description="暂无审批流程" />
 
     <div v-else class="timeline-box">
-      <div v-for="stage in stageDisplayList" :key="stage.stageCode" class="stage-block">
-        <div class="stage-title">{{ stage.stageName || stage.stageCode }}</div>
-        <div class="stage-version-row">
+      <div class="stage-flow">
+        <div v-for="(stage, index) in stageDisplayList" :key="stage.stageCode" class="stage-flow-unit">
           <div
             class="version-card"
             :class="getVersionCardClass(stage.latestVersion?.status)"
@@ -68,6 +72,12 @@
               查看历史重发记录 (共{{ stage.sortedVersions.length }}次)
             </button>
           </div>
+          <img
+            v-if="index < stageDisplayList.length - 1"
+            :src="stageArrowImage"
+            class="stage-flow-arrow"
+            alt="flow-arrow"
+          />
         </div>
       </div>
     </div>
@@ -127,6 +137,7 @@
 <script setup lang="ts">
 import { formatDate } from '@/utils/formatTime'
 import { PROJECT_STATUS_OPTIONS, STAGE_STATUS, STAGE_STATUS_OPTIONS } from '@/utils/constants'
+import stageArrowImage from '@/assets/svgs/bpm/project/jiantou.png'
 import {
   StageApi,
   type ProjectDetailVO,
@@ -152,6 +163,14 @@ type StageCardVO = StageTimelineVO & {
 
 const projectStatusOptions: StatusItem[] = [...PROJECT_STATUS_OPTIONS]
 const stageStatusOptions: StatusItem[] = [...STAGE_STATUS_OPTIONS]
+const groupIconList = [
+  'ep:medal',
+  'ep:document',
+  'ep:tickets',
+  'ep:user',
+  'ep:folder-checked',
+  'ep:checked'
+]
 
 const route = useRoute()
 const { push } = useRouter()
@@ -242,6 +261,20 @@ const getGroupSortLabel = (sort?: number) => {
     return '--'
   }
   return String(sort).padStart(2, '0')
+}
+
+const getGroupIcon = (index: number) => {
+  return groupIconList[index % groupIconList.length]
+}
+
+const getGroupTabClass = (item: StageGroupVO, index: number) => {
+  const normalized = normalizeStatus(item.stageStatus)
+  return {
+    active: selectedGroupCode.value === item.stageGroupCode,
+    'is-last': index === groupList.value.length - 1,
+    'is-danger': normalized === STAGE_STATUS.REJECTED || normalized === STAGE_STATUS.TERMINATED,
+    'is-muted': normalized === STAGE_STATUS.CANCELED
+  }
 }
 
 const formatTime = (value?: string | null) => {
@@ -367,6 +400,10 @@ const openHistoryDrawer = (stage: StageCardVO) => {
   historyDrawerVisible.value = true
 }
 
+const isCompletedVersion = (version: StageVersionVO) => {
+  return normalizeStatus(version.status) === STAGE_STATUS.APPROVED
+}
+
 const openProcessDetail = async (version: StageVersionVO) => {
   const currentProjectId = detail.value.id ?? projectId.value
   const query = {
@@ -374,6 +411,16 @@ const openProcessDetail = async (version: StageVersionVO) => {
     processDefinitionKey: version?.processDefinitionKey ? String(version.processDefinitionKey) : undefined,
     processInstanceId: version?.processInstanceId ? String(version.processInstanceId) : undefined,
     projectId: currentProjectId ? String(currentProjectId) : undefined
+  }
+  if (isCompletedVersion(version) && query.processInstanceId) {
+    await push({
+      name: 'ProjectProcessInstanceDetail',
+      query: {
+        id: query.processInstanceId,
+        projectId: query.projectId
+      }
+    })
+    return
   }
   if (!query.processDefinitionId && !query.processDefinitionKey && !query.processInstanceId) {
     return
@@ -497,48 +544,176 @@ onBeforeUnmount(() => {
 
 .group-tabs {
   display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-bottom: 14px;
+  align-items: flex-start;
+  gap: 22px;
+  margin-bottom: 16px;
+  padding: 8px 2px 4px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: #9fb0c5 #edf2f8;
+}
+
+.group-tabs::-webkit-scrollbar {
+  height: 8px;
+}
+
+.group-tabs::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.group-tabs::-webkit-scrollbar-track {
+  background: #edf2f8;
+  border-radius: 999px;
+}
+
+.group-tabs::-webkit-scrollbar-thumb {
+  background: linear-gradient(90deg, #c6d3e2 0%, #9fb0c5 100%);
+  border-radius: 999px;
+}
+
+.group-tabs:hover::-webkit-scrollbar-thumb {
+  background: linear-gradient(90deg, #9fb0c5 0%, #7f95af 100%);
 }
 
 .group-tab {
   position: relative;
   display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--el-text-color-regular);
-  font-size: 16px;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 120px;
+  padding-right: 14px;
   cursor: pointer;
-  padding-bottom: 6px;
+  user-select: none;
 }
 
-.group-tab.active {
-  color: var(--el-color-primary);
-  font-weight: 700;
-}
-
-.group-tab.active::after {
+.group-tab::after {
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  top: 14px;
+  left: calc(100% - 10px);
+  width: 24px;
   content: '';
-  border-bottom: 2px solid var(--el-color-primary);
+  border-top: 1px solid #d9d9d9;
+}
+
+.group-tab.is-last::after {
+  display: none;
+}
+
+.group-node {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #409eff;
+}
+
+.group-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #409eff;
+  color: #fff;
+  font-size: 13px;
+  box-shadow: 0 2px 6px rgb(64 158 255 / 30%);
 }
 
 .group-sort {
   color: inherit;
-  font-size: 30px;
-  font-weight: 600;
+  font-size: 32px;
+  font-weight: 700;
   line-height: 1;
+  letter-spacing: 0.6px;
 }
 
 .group-name {
-  color: inherit;
-  font-size: 18px;
+  margin-top: -2px;
+  color: #1f2937;
+  font-size: 16px;
   font-weight: 600;
+  padding-bottom: 3px;
+  border-bottom: 2px solid transparent;
+}
+
+.group-tab.is-danger .group-node {
+  color: #f56c6c;
+}
+
+.group-tab.is-danger .group-icon {
+  background: #f56c6c;
+  box-shadow: 0 2px 6px rgb(245 108 108 / 28%);
+}
+
+.group-tab.is-danger .group-name {
+  color: #f56c6c;
+}
+
+.group-tab.is-muted .group-node {
+  color: #9ca3af;
+}
+
+.group-tab.is-muted .group-icon {
+  background: #9ca3af;
+  box-shadow: none;
+}
+
+.group-tab.is-muted .group-name {
+  color: #9ca3af;
+}
+
+.group-tab.active .group-node {
+  color: #f59e0b;
+}
+
+.group-tab.active .group-icon {
+  background: #f59e0b;
+  box-shadow: 0 2px 6px rgb(245 158 11 / 35%);
+}
+
+.group-tab.active .group-name {
+  color: #f59e0b;
+  border-bottom-color: #f59e0b;
+}
+
+@media (max-width: 900px) {
+  .group-tabs {
+    gap: 16px;
+  }
+
+  .group-tab {
+    min-width: 108px;
+  }
+
+  .group-sort {
+    font-size: 26px;
+  }
+
+  .group-name {
+    font-size: 14px;
+  }
+
+  .stage-flow {
+    row-gap: 8px;
+  }
+
+  .stage-flow-unit {
+    min-height: auto;
+  }
+
+  .stage-flow-arrow {
+    width: 14px;
+    height: 14px;
+  }
+
+  .version-card {
+    width: 230px;
+    min-height: 142px;
+    padding: 10px 12px;
+  }
 }
 
 .timeline-loading {
@@ -546,32 +721,34 @@ onBeforeUnmount(() => {
 }
 
 .timeline-box {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+  padding-top: 2px;
 }
 
-.stage-block {
+.stage-flow {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.stage-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-}
-
-.stage-version-row {
-  display: flex;
-  align-items: stretch;
+  align-items: flex-start;
   flex-wrap: wrap;
-  gap: 10px;
+  column-gap: 8px;
+  row-gap: 10px;
+}
+
+.stage-flow-unit {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 160px;
+}
+
+.stage-flow-arrow {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  flex: 0 0 auto;
+  opacity: 0.95;
 }
 
 .version-card {
-  width: 280px;
+  width: 260px;
   min-height: 156px;
   border-radius: 10px;
   border: 1px solid #f8d4a8;

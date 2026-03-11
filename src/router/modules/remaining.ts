@@ -284,6 +284,25 @@ const remainingRouter: AppRouteRecordRaw[] = [
         })
       },
       {
+        path: 'project/process-instance/detail',
+        name: 'ProjectProcessInstanceDetail',
+        meta: {
+          title: '流程详情',
+          noCache: true,
+          noTagsView: false,
+          hidden: true,
+          canTo: true,
+          activeMenu: '/project/projectstage'
+        },
+        component: () => import('@/views/project/projectstage/ProcessInstanceDetail.vue'),
+        props: (route) => ({
+          id: route.query.id,
+          taskId: route.query.taskId,
+          activityId: route.query.activityId,
+          projectId: route.query.projectId
+        })
+      },
+      {
         path: 'process-instance/report',
         component: () => import('@/views/bpm/processInstance/report/index.vue'),
         name: 'BpmProcessInstanceReport',
@@ -615,6 +634,7 @@ const remainingRouter: AppRouteRecordRaw[] = [
         meta: {
           title: '项目详情',
           noCache: true,
+          noTagsView: false,
           hidden: true,
           canTo: true,
           activeMenu: '/project/projectstage'

@@ -149,7 +149,7 @@
       </el-table-column>
       <el-table-column label="与我相关" align="center" min-width="110px">
         <template #default="{ row }">
-          {{ row.relationTypeLabel || formatRelationType(row.relationType) }}
+          {{ getRelationTypeText(row) }}
         </template>
       </el-table-column>
       <el-table-column
@@ -208,6 +208,7 @@
 import { dateFormatter } from '@/utils/formatTime'
 import { PROJECT_STATUS_OPTIONS, STAGE_STATUS_OPTIONS } from '@/utils/constants'
 import { StageApi, type StagePageReqVO, type StageVO } from '@/api/project/projectstage'
+import { useUserStoreWithOut } from '@/store/modules/user'
 import StageForm from './StageForm.vue'
 import type { FormInstance, FormRules, TagProps } from 'element-plus'
 
@@ -226,6 +227,7 @@ const relationTypeOptions = [
   { value: 'TODO', label: '待我处理' },
   { value: 'DONE', label: '我已处理' }
 ]
+const userStore = useUserStoreWithOut()
 const message = useMessage()
 
 const loading = ref(false)
@@ -290,6 +292,7 @@ const getProjectStatusType = (value?: number | string | null) =>
   getStatusType(projectStatusOptions, value)
 const getStageStatusLabel = (value?: number | string | null) => getStatusLabel(stageStatusOptions, value)
 const getStageStatusType = (value?: number | string | null) => getStatusType(stageStatusOptions, value)
+const currentUserId = computed(() => Number(userStore.getUser?.id || 0))
 
 const getCurrentApproverText = (row: StageVO) => {
   const assigneeList = Array.isArray(row.assignee) ? row.assignee : []
@@ -301,6 +304,41 @@ const getCurrentApproverText = (row: StageVO) => {
   }
   const fallback = String(row.latestApproverUserName || '').trim()
   return fallback || '--'
+}
+
+const normalizeUserId = (value: unknown) => {
+  if (value === undefined || value === null || value === '') {
+    return undefined
+  }
+  const userId = Number(value)
+  return Number.isNaN(userId) ? undefined : userId
+}
+
+const getCompletedTaskInfos = (row: StageVO) => {
+  if (Array.isArray(row.completedTaskInfos)) {
+    return row.completedTaskInfos
+  }
+  if (Array.isArray(row.taskInfos)) {
+    return row.taskInfos
+  }
+  return []
+}
+
+const getRelationTypeText = (row: StageVO) => {
+  const userId = currentUserId.value
+  if (!userId) {
+    return row.relationTypeLabel || formatRelationType(row.relationType)
+  }
+  const pendingAssigneeList = Array.isArray(row.assignee) ? row.assignee : []
+  const isTodo = pendingAssigneeList.some((item) => normalizeUserId(item?.id) === userId)
+  if (isTodo) {
+    return '待我处理'
+  }
+  const isDone = getCompletedTaskInfos(row).some((item) => normalizeUserId(item?.assignee) === userId)
+  if (isDone) {
+    return '我已处理'
+  }
+  return row.relationTypeLabel || formatRelationType(row.relationType)
 }
 
 const formatRelationType = (relationType?: string) => {

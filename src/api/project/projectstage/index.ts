@@ -61,6 +61,7 @@ export interface StageVO {
   latestEndTime?: string | null
   assignee?: StageAssigneeVO[] | null
   taskInfos?: StageTaskInfoVO[] | null
+  completedTaskInfos?: StageTaskInfoVO[] | null
   projectPrice?: number | string
   projectQuote?: number | string
   remark?: string

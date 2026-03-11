@@ -320,6 +320,18 @@ const remainingRouter: AppRouteRecordRaw[] = [
         }
       },
       {
+        path: 'task/direct-create',
+        component: () => import('@/views/bpm/processInstance/create/direct.vue'),
+        name: 'BpmProcessInstanceDirectCreate',
+        meta: {
+          noCache: true,
+          hidden: true,
+          canTo: true,
+          title: '发起流程',
+          activeMenu: '/project/projectstage'
+        }
+      },
+      {
         path: 'manager/model/create',
         component: () => import('@/views/bpm/model/form/index.vue'),
         name: 'BpmModelCreate',

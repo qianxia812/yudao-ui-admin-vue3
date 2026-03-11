@@ -106,7 +106,15 @@ const route = useRoute() // 路由
 const message = useMessage() // 消息
 
 const searchName = ref('') // 当前搜索关键字
-const processInstanceId: any = route.query.processInstanceId // 流程实例编号。场景：重新发起时
+const getQueryValue = (value: unknown) => {
+  if (Array.isArray(value)) {
+    return value[0]
+  }
+  return value
+}
+const processInstanceId = getQueryValue(route.query.processInstanceId) as any // 流程实例编号。场景：重新发起时
+const processDefinitionId = getQueryValue(route.query.processDefinitionId) as any // 流程定义编号。场景：项目发起直达时
+const processDefinitionKey = getQueryValue(route.query.processDefinitionKey) as any // 流程定义 Key。场景：项目发起直达时
 const loading = ref(true) // 加载中
 const categoryList: any = ref([]) // 分类的列表
 const categoryActive: any = ref({}) // 选中的分类
@@ -122,7 +130,7 @@ const getList = async () => {
     await getProcessDefinitionList()
 
     // 如果 processInstanceId 非空，说明是重新发起
-    if (processInstanceId?.length > 0) {
+    if (processInstanceId) {
       const processInstance = await ProcessInstanceApi.getProcessInstance(processInstanceId)
       if (!processInstance) {
         message.error('重新发起流程失败，原因：流程实例不存在')
@@ -136,6 +144,21 @@ const getList = async () => {
         return
       }
       await handleSelect(processDefinition, processInstance.formVariables)
+      return
+    }
+
+    // 如果 processDefinitionId 或 processDefinitionKey 非空，说明是指定流程定义发起（例如项目阶段“未开始”）
+    if (processDefinitionId || processDefinitionKey) {
+      const processDefinition = processDefinitionList.value.find(
+        (item: any) =>
+          (processDefinitionId && String(item.id) === String(processDefinitionId)) ||
+          (processDefinitionKey && String(item.key) === String(processDefinitionKey))
+      )
+      if (!processDefinition) {
+        message.error('发起流程失败，原因：流程定义不存在')
+        return
+      }
+      await handleSelect(processDefinition)
     }
   } finally {
     loading.value = false

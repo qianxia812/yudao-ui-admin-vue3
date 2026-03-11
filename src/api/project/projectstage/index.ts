@@ -18,6 +18,18 @@ export interface StagePageReqVO {
 export interface StageVO {
   id?: number
   projectId?: number
+  processInstanceId?: string | number
+  latestProcessInstanceId?: string | number
+  currentProcessInstanceId?: string | number
+  nextProcessInstanceId?: string | number
+  processDefinitionId?: string | number
+  latestProcessDefinitionId?: string | number
+  currentProcessDefinitionId?: string | number
+  nextProcessDefinitionId?: string | number
+  processDefinitionKey?: string
+  latestProcessDefinitionKey?: string
+  currentProcessDefinitionKey?: string
+  nextProcessDefinitionKey?: string
   projectCode?: string
   projectName?: string
   projectStatus?: number
@@ -72,7 +84,9 @@ export interface StageVersionVO {
   stageName?: string
   versionNo?: number
   startType?: number
-  processDefinitionId?: string
+  processInstanceId?: string | number
+  processDefinitionId?: string | number
+  processDefinitionKey?: string
   status?: number
   starterUserId?: number
   starterUserName?: string

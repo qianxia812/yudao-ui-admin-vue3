@@ -429,6 +429,41 @@ export const TradeOrderStatusEnum = {
 
 // ========== ERP - 企业资源计划 ==========
 
+// ========== PROJECT 模块 ==========
+export const PROJECT_STATUS = {
+  NOT_START: 0,
+  RUNNING: 1,
+  COMPLETED: 2,
+  TERMINATED: 3,
+  ARCHIVED: 4
+} as const
+
+export const PROJECT_STATUS_OPTIONS = [
+  { value: PROJECT_STATUS.NOT_START, label: '未开始', type: 'warning' },
+  { value: PROJECT_STATUS.RUNNING, label: '进行中', type: 'primary' },
+  { value: PROJECT_STATUS.COMPLETED, label: '已完成', type: 'success' },
+  { value: PROJECT_STATUS.TERMINATED, label: '已终止', type: 'danger' },
+  { value: PROJECT_STATUS.ARCHIVED, label: '已归档', type: 'info' }
+] as const
+
+export const STAGE_STATUS = {
+  NOT_START: 0,
+  APPROVING: 1,
+  APPROVED: 2,
+  REJECTED: 3,
+  CANCELED: 4,
+  TERMINATED: 5
+} as const
+
+export const STAGE_STATUS_OPTIONS = [
+  { value: STAGE_STATUS.NOT_START, label: '未开始', type: 'warning' },
+  { value: STAGE_STATUS.APPROVING, label: '审批中', type: 'primary' },
+  { value: STAGE_STATUS.APPROVED, label: '审批通过', type: 'success' },
+  { value: STAGE_STATUS.REJECTED, label: '审批不通过', type: 'danger' },
+  { value: STAGE_STATUS.CANCELED, label: '取消', type: 'info' },
+  { value: STAGE_STATUS.TERMINATED, label: '终止', type: 'danger' }
+] as const
+
 export const ErpBizType = {
   PURCHASE_ORDER: 10,
   PURCHASE_IN: 11,

@@ -95,10 +95,27 @@ const props = defineProps<{
   selectProcessDefinition: any
 }>()
 const emit = defineEmits(['cancel'])
+const route = useRoute()
 const processInstanceStartLoading = ref(false) // 流程实例发起中
 const { push, currentRoute } = useRouter() // 路由
 const message = useMessage() // 消息弹窗
 const { delView } = useTagsViewStore() // 视图操作
+
+const getQueryValue = (value: unknown) => {
+  if (Array.isArray(value)) {
+    return value[0]
+  }
+  return value
+}
+
+const projectId = computed(() => {
+  const value = getQueryValue(route.query.projectId)
+  if (value === undefined || value === null) {
+    return undefined
+  }
+  const projectIdStr = String(value).trim()
+  return projectIdStr || undefined
+})
 
 const detailForm: any = ref({
   rule: [],
@@ -291,11 +308,15 @@ const submitForm = async () => {
   // 提交请求
   processInstanceStartLoading.value = true
   try {
-    await ProcessInstanceApi.createProcessInstance({
+    const createPayload: any = {
       processDefinitionId: props.selectProcessDefinition.id,
       variables: detailForm.value.value,
       startUserSelectAssignees: startUserSelectAssignees.value
-    })
+    }
+    if (projectId.value) {
+      createPayload.projectId = projectId.value
+    }
+    await ProcessInstanceApi.createProcessInstance(createPayload)
     // 提示
     message.success('发起流程成功')
     // 跳转回去

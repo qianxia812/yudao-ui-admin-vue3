@@ -206,6 +206,7 @@
 
 <script setup lang="ts">
 import { dateFormatter } from '@/utils/formatTime'
+import { PROJECT_STATUS, PROJECT_STATUS_OPTIONS, STAGE_STATUS_OPTIONS } from '@/utils/constants'
 import { StageApi, type StagePageReqVO, type StageVO } from '@/api/project/projectstage'
 import StageForm from './StageForm.vue'
 import type { FormInstance, FormRules, TagProps } from 'element-plus'
@@ -218,22 +219,8 @@ type StatusItem = {
   type: TagProps['type']
 }
 
-const projectStatusOptions: StatusItem[] = [
-  { value: 0, label: '未开始', type: 'warning' },
-  { value: 1, label: '进行中', type: 'primary' },
-  { value: 2, label: '已完成', type: 'success' },
-  { value: 3, label: '已终止', type: 'danger' },
-  { value: 4, label: '已归档', type: 'info' }
-]
-
-const stageStatusOptions: StatusItem[] = [
-  { value: 0, label: '未开始', type: 'warning' },
-  { value: 1, label: '审批中', type: 'primary' },
-  { value: 2, label: '审批通过', type: 'success' },
-  { value: 3, label: '审批不通过', type: 'danger' },
-  { value: 4, label: '取消', type: 'info' },
-  { value: 5, label: '终止', type: 'danger' }
-]
+const projectStatusOptions: StatusItem[] = [...PROJECT_STATUS_OPTIONS]
+const stageStatusOptions: StatusItem[] = [...STAGE_STATUS_OPTIONS]
 
 const relationTypeOptions = [
   { value: 'TODO', label: '待我处理' },
@@ -279,18 +266,30 @@ const resetQuery = () => {
   handleQuery()
 }
 
-const getStatusLabel = (options: StatusItem[], value?: number) => {
-  return options.find((item) => item.value === value)?.label || '--'
+const normalizeStatus = (value?: number | string | null) => {
+  if (value === undefined || value === null || value === '') {
+    return undefined
+  }
+  const normalized = Number(value)
+  return Number.isNaN(normalized) ? undefined : normalized
 }
 
-const getStatusType = (options: StatusItem[], value?: number): TagProps['type'] => {
-  return options.find((item) => item.value === value)?.type || 'info'
+const getStatusLabel = (options: StatusItem[], value?: number | string | null) => {
+  const normalized = normalizeStatus(value)
+  return options.find((item) => item.value === normalized)?.label || '--'
 }
 
-const getProjectStatusLabel = (value?: number) => getStatusLabel(projectStatusOptions, value)
-const getProjectStatusType = (value?: number) => getStatusType(projectStatusOptions, value)
-const getStageStatusLabel = (value?: number) => getStatusLabel(stageStatusOptions, value)
-const getStageStatusType = (value?: number) => getStatusType(stageStatusOptions, value)
+const getStatusType = (options: StatusItem[], value?: number | string | null): TagProps['type'] => {
+  const normalized = normalizeStatus(value)
+  return options.find((item) => item.value === normalized)?.type || 'info'
+}
+
+const getProjectStatusLabel = (value?: number | string | null) =>
+  getStatusLabel(projectStatusOptions, value)
+const getProjectStatusType = (value?: number | string | null) =>
+  getStatusType(projectStatusOptions, value)
+const getStageStatusLabel = (value?: number | string | null) => getStatusLabel(stageStatusOptions, value)
+const getStageStatusType = (value?: number | string | null) => getStatusType(stageStatusOptions, value)
 
 const formatRelationType = (relationType?: string) => {
   if (!relationType) {
@@ -300,7 +299,65 @@ const formatRelationType = (relationType?: string) => {
 }
 
 const { push } = useRouter()
+const getProcessDefinitionTarget = (row: StageVO) => {
+  const processInstanceCandidates = [
+    row.processInstanceId,
+    row.latestProcessInstanceId,
+    row.currentProcessInstanceId,
+    row.nextProcessInstanceId
+  ]
+  const idCandidates = [
+    row.processDefinitionId,
+    row.latestProcessDefinitionId,
+    row.currentProcessDefinitionId,
+    row.nextProcessDefinitionId
+  ]
+  const keyCandidates = [
+    row.processDefinitionKey,
+    row.latestProcessDefinitionKey,
+    row.currentProcessDefinitionKey,
+    row.nextProcessDefinitionKey
+  ]
+  const processDefinitionId = idCandidates.find(
+    (item) => item !== undefined && item !== null && `${item}`.trim()
+  )
+  const processDefinitionKey = keyCandidates.find((item) => item && item.trim())
+  const processInstanceId = processInstanceCandidates.find(
+    (item) => item !== undefined && item !== null && `${item}`.trim()
+  )
+  return {
+    processInstanceId: processInstanceId ? String(processInstanceId) : undefined,
+    processDefinitionId: processDefinitionId ? String(processDefinitionId) : undefined,
+    processDefinitionKey: processDefinitionKey ? String(processDefinitionKey) : undefined
+  }
+}
+
+const goProcessCreatePage = async (target?: {
+  processDefinitionId?: string
+  processDefinitionKey?: string
+  processInstanceId?: string
+  projectId?: number
+}) => {
+  const query =
+    target?.processDefinitionId || target?.processDefinitionKey || target?.processInstanceId
+      ? {
+          processDefinitionId: target?.processDefinitionId,
+          processDefinitionKey: target?.processDefinitionKey,
+          processInstanceId: target?.processInstanceId,
+          projectId: target?.projectId ? String(target.projectId) : undefined
+        }
+      : undefined
+  await push({ name: 'BpmProcessInstanceDirectCreate', query })
+}
+
 const openDetail = async (row: StageVO) => {
+  if (normalizeStatus(row.projectStatus) === PROJECT_STATUS.NOT_START) {
+    await goProcessCreatePage({
+      ...getProcessDefinitionTarget(row),
+      projectId: Number(row.projectId ?? row.id)
+    })
+    return
+  }
   const id = Number(row.projectId ?? row.id)
   if (!id) {
     message.warning('未获取到项目 ID，无法打开详情')

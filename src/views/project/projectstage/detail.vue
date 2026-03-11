@@ -7,7 +7,7 @@
           {{ getProjectStatusLabel(detail.projectStatus) }}
         </el-tag>
       </div>
-      <div v-if="projectPriceText" class="project-line">项目报价：{{ projectPriceText }}</div>
+      <div class="project-line">项目报价：{{ projectQuoteText }}</div>
       <div class="project-line">项目概述：{{ detail.remark || '--' }}</div>
       <div v-if="detail.archiveReason" class="project-line">归档原因：{{ detail.archiveReason }}</div>
     </div>
@@ -36,11 +36,7 @@
         <div class="stage-title">{{ stage.stageName || stage.stageCode }}</div>
         <div class="stage-version-row">
           <template v-for="(version, index) in stage.versions" :key="version.id || `${stage.stageCode}-${index}`">
-            <div
-              class="version-card"
-              :class="getVersionCardClass(version.status)"
-              @click="openProcessDetail(version.processDefinitionId)"
-            >
+            <div class="version-card" :class="getVersionCardClass(version.status)" @click="openProcessDetail(version)">
               <div class="version-title">{{ buildVersionTitle(version) }}</div>
               <div class="version-line">发起人员：{{ version.starterUserName || version.starterUserId || '--' }}</div>
               <div class="version-line">发起时间：{{ formatTime(version.startTime) }}</div>
@@ -58,6 +54,7 @@
 
 <script setup lang="ts">
 import { formatDate } from '@/utils/formatTime'
+import { PROJECT_STATUS_OPTIONS, STAGE_STATUS, STAGE_STATUS_OPTIONS } from '@/utils/constants'
 import {
   StageApi,
   type ProjectDetailVO,
@@ -75,22 +72,8 @@ type StatusItem = {
   type: TagProps['type']
 }
 
-const projectStatusOptions: StatusItem[] = [
-  { value: 0, label: '未开始', type: 'warning' },
-  { value: 1, label: '进行中', type: 'primary' },
-  { value: 2, label: '已完成', type: 'success' },
-  { value: 3, label: '已终止', type: 'danger' },
-  { value: 4, label: '已归档', type: 'info' }
-]
-
-const stageStatusOptions: StatusItem[] = [
-  { value: 0, label: '未开始', type: 'warning' },
-  { value: 1, label: '审批中', type: 'primary' },
-  { value: 2, label: '审批通过', type: 'success' },
-  { value: 3, label: '审批不通过', type: 'danger' },
-  { value: 4, label: '取消', type: 'info' },
-  { value: 5, label: '终止', type: 'danger' }
-]
+const projectStatusOptions: StatusItem[] = [...PROJECT_STATUS_OPTIONS]
+const stageStatusOptions: StatusItem[] = [...STAGE_STATUS_OPTIONS]
 
 const route = useRoute()
 const { push } = useRouter()
@@ -108,29 +91,44 @@ const projectId = computed(() => {
   return Number.isNaN(id) ? 0 : id
 })
 
-const projectPriceText = computed(() => {
-  const value = detail.value.projectPrice ?? detail.value.projectQuote
+const formatQuote = (value: number | string | null | undefined) => {
   if (value === null || value === undefined || value === '') {
-    return ''
+    return '--'
   }
   const num = Number(value)
   if (Number.isNaN(num)) {
     return `${value}元`
   }
   return `${num.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}元`
+}
+
+const projectQuoteText = computed(() => {
+  return formatQuote(detail.value.projectQuote ?? detail.value.projectPrice)
 })
 
-const getStatusLabel = (options: StatusItem[], value?: number) => {
-  return options.find((item) => item.value === value)?.label || '--'
+const normalizeStatus = (value?: number | string | null) => {
+  if (value === undefined || value === null || value === '') {
+    return undefined
+  }
+  const normalized = Number(value)
+  return Number.isNaN(normalized) ? undefined : normalized
 }
 
-const getStatusType = (options: StatusItem[], value?: number): TagProps['type'] => {
-  return options.find((item) => item.value === value)?.type || 'info'
+const getStatusLabel = (options: StatusItem[], value?: number | string | null) => {
+  const normalized = normalizeStatus(value)
+  return options.find((item) => item.value === normalized)?.label || '--'
 }
 
-const getProjectStatusLabel = (value?: number) => getStatusLabel(projectStatusOptions, value)
-const getProjectStatusType = (value?: number) => getStatusType(projectStatusOptions, value)
-const getStageStatusLabel = (value?: number) => getStatusLabel(stageStatusOptions, value)
+const getStatusType = (options: StatusItem[], value?: number | string | null): TagProps['type'] => {
+  const normalized = normalizeStatus(value)
+  return options.find((item) => item.value === normalized)?.type || 'info'
+}
+
+const getProjectStatusLabel = (value?: number | string | null) =>
+  getStatusLabel(projectStatusOptions, value)
+const getProjectStatusType = (value?: number | string | null) =>
+  getStatusType(projectStatusOptions, value)
+const getStageStatusLabel = (value?: number | string | null) => getStatusLabel(stageStatusOptions, value)
 
 const getGroupSortLabel = (sort?: number) => {
   if (!sort) {
@@ -156,33 +154,38 @@ const buildEndLine = (version: StageVersionVO) => {
   if (version.endTime) {
     return `结束时间：${formatTime(version.endTime)}`
   }
-  if (version.status === 1) {
+  if (normalizeStatus(version.status) === STAGE_STATUS.APPROVING) {
     return `当前审批：${version.currentAssigneeUserName || '--'}`
   }
   return '结束时间：--'
 }
 
-const getVersionCardClass = (status?: number) => {
-  if (status === 1) {
+const getVersionCardClass = (status?: number | string | null) => {
+  const normalized = normalizeStatus(status)
+  if (normalized === STAGE_STATUS.APPROVING) {
     return 'is-running'
   }
-  if (status === 3) {
+  if (normalized === STAGE_STATUS.REJECTED) {
     return 'is-reject'
   }
-  if (status === 2) {
+  if (normalized === STAGE_STATUS.APPROVED) {
     return 'is-pass'
   }
   return ''
 }
 
-const openProcessDetail = (processDefinitionId?: string) => {
-  if (!processDefinitionId) {
+const openProcessDetail = async (version: StageVersionVO) => {
+  const currentProjectId = detail.value.id ?? projectId.value
+  const query = {
+    processDefinitionId: version?.processDefinitionId ? String(version.processDefinitionId) : undefined,
+    processDefinitionKey: version?.processDefinitionKey ? String(version.processDefinitionKey) : undefined,
+    processInstanceId: version?.processInstanceId ? String(version.processInstanceId) : undefined,
+    projectId: currentProjectId ? String(currentProjectId) : undefined
+  }
+  if (!query.processDefinitionId && !query.processDefinitionKey && !query.processInstanceId) {
     return
   }
-  push({
-    name: 'BpmProcessInstanceDetail',
-    query: { id: processDefinitionId }
-  })
+  await push({ name: 'BpmProcessInstanceDirectCreate', query })
 }
 
 const fetchProjectDetail = async () => {
@@ -190,7 +193,9 @@ const fetchProjectDetail = async () => {
 }
 
 const getDefaultGroupCode = (groups: StageGroupVO[]) => {
-  const running = groups.find((item) => item.stageStatus === 1 && item.stageGroupCode)
+  const running = groups.find(
+    (item) => normalizeStatus(item.stageStatus) === STAGE_STATUS.APPROVING && item.stageGroupCode
+  )
   if (running?.stageGroupCode) {
     return running.stageGroupCode
   }

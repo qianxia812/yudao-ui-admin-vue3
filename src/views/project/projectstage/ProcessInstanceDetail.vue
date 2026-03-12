@@ -291,7 +291,7 @@ const handleReCreate = async () => {
     return
   }
   await push({
-    name: 'BpmProcessInstanceCreate',
+    name: 'BpmProcessInstanceDirectCreate',
     query: {
       processInstanceId: processInstance.value.id,
       projectId: props.projectId

@@ -453,6 +453,63 @@
     </el-popover>
 
     <!--【取消】按钮 这个对应发起人的取消, 只有发起人可以取消 -->
+    <!-- 【跳过】按钮 -->
+    <el-popover
+      :visible="popOverVisible.skip"
+      placement="top-start"
+      :width="420"
+      trigger="click"
+      v-if="runningTask && isHandleTaskStatus() && isShowButton(OperationButtonType.SKIP)"
+    >
+      <template #reference>
+        <div @click="openPopover('skip')" class="hover-bg-gray-100 rounded-xl p-6px">
+          <Icon :size="14" icon="ep:right" />&nbsp;
+          {{ getButtonDisplayName(OperationButtonType.SKIP) }}
+        </div>
+      </template>
+      <div class="flex flex-col flex-1 pt-20px px-20px" v-loading="formLoading">
+        <el-form
+          label-position="top"
+          class="mb-auto"
+          ref="skipFormRef"
+          :model="skipReasonForm"
+          :rules="skipReasonRule"
+          label-width="100px"
+        >
+          <el-form-item label="跳过理由" prop="reason">
+            <el-input
+              v-model="skipReasonForm.reason"
+              clearable
+              placeholder="请输入跳过理由"
+              type="textarea"
+              :rows="3"
+            />
+          </el-form-item>
+          <el-form-item
+            label="下一个节点的审批人"
+            prop="nextAssignees"
+            v-if="skipNextAssigneesActivityNode.length > 0"
+          >
+            <div class="ml-10px -mt-15px -mb-35px">
+              <ProcessInstanceTimeline
+                ref="skipNextAssigneesTimelineRef"
+                :activity-nodes="skipNextAssigneesActivityNode"
+                :show-status-icon="false"
+                :enable-approve-user-select="true"
+                @select-user-confirm="selectSkipNextAssigneesConfirm"
+              />
+            </div>
+          </el-form-item>
+          <el-form-item>
+            <el-button :disabled="formLoading" type="warning" @click="handleSkip()">
+              {{ getButtonDisplayName(OperationButtonType.SKIP) }}
+            </el-button>
+            <el-button @click="closePopover('skip', skipFormRef)"> 取消 </el-button>
+          </el-form-item>
+        </el-form>
+      </div>
+    </el-popover>
+
     <el-popover
       :visible="popOverVisible.cancel"
       placement="top-start"
@@ -555,6 +612,7 @@ const popOverVisible = ref({
   delegate: false,
   addSign: false,
   return: false,
+  skip: false,
   copy: false,
   cancel: false,
   deleteSign: false
@@ -597,6 +655,21 @@ const rejectReasonForm = reactive({
 const rejectReasonRule = computed(() => {
   return {
     reason: [{ required: reasonRequire.value, message: '审批意见不能为空', trigger: 'blur' }]
+  }
+})
+
+// 跳过表单
+const skipFormRef = ref<FormInstance>()
+const skipNextAssigneesActivityNode = ref<ProcessInstanceApi.ApprovalNodeInfo[]>([])
+const skipNextAssigneesTimelineRef = ref()
+const skipReasonForm = reactive({
+  reason: '',
+  nextAssignees: {}
+})
+const skipReasonRule = computed(() => {
+  return {
+    reason: [{ required: reasonRequire.value, message: '跳过理由不能为空', trigger: 'blur' }],
+    nextAssignees: [{ required: true, message: '审批人不能为空', trigger: 'blur' }]
   }
 })
 
@@ -686,17 +759,34 @@ watch(
   }
 )
 
+const resetApproveNextAssignees = () => {
+  nextAssigneesActivityNode.value = []
+  approveReasonForm.nextAssignees = {}
+}
+
+const resetSkipNextAssignees = () => {
+  skipNextAssigneesActivityNode.value = []
+  skipReasonForm.nextAssignees = {}
+  if (skipNextAssigneesTimelineRef.value) {
+    skipNextAssigneesTimelineRef.value.batchSetCustomApproveUsers({})
+  }
+}
+
 /** 弹出气泡卡 */
 const openPopover = async (type: string) => {
   if (popOverVisible.value[type] === true) return
-  if (type === 'approve') {
+  if (type === 'approve' || type === 'skip') {
     // 校验流程表单
     const valid = await validateNormalForm()
     if (!valid) {
       message.warning('表单校验不通过，请先完善表单!!')
       return
     }
-    initNextAssigneesFormField()
+    if (type === 'approve') {
+      initNextAssigneesFormField()
+    } else {
+      initSkipNextAssigneesFormField()
+    }
   }
   if (type === 'return') {
     // 获取退回节点
@@ -719,7 +809,12 @@ const closePopover = (type: string, formRef: FormInstance | undefined) => {
     formRef.resetFields()
   }
   popOverVisible.value[type] = false
-  nextAssigneesActivityNode.value = []
+  if (type === 'approve') {
+    resetApproveNextAssignees()
+  }
+  if (type === 'skip') {
+    resetSkipNextAssignees()
+  }
   // 清理 Timeline 组件中的自定义审批人数据
   if (nextAssigneesTimelineRef.value) {
     nextAssigneesTimelineRef.value.batchSetCustomApproveUsers({})
@@ -728,6 +823,7 @@ const closePopover = (type: string, formRef: FormInstance | undefined) => {
 
 /** 流程通过时，根据表单变量查询新的流程节点，判断下一个节点类型是否为自选审批人 */
 const initNextAssigneesFormField = async () => {
+  resetApproveNextAssignees()
   // 获取修改的流程变量, 暂时只支持流程表单
   const variables = getUpdatedProcessInstanceVariables()
   const data = await ProcessInstanceApi.getNextApprovalNodes({
@@ -764,8 +860,41 @@ const initNextAssigneesFormField = async () => {
 }
 
 /** 选择下一个节点的审批人 */
+const initSkipNextAssigneesFormField = async () => {
+  resetSkipNextAssignees()
+  const variables = getUpdatedProcessInstanceVariables()
+  const data = await ProcessInstanceApi.getNextApprovalNodes({
+    processInstanceId: props.processInstance.id,
+    taskId: runningTask.value.id,
+    processVariablesStr: JSON.stringify(variables)
+  })
+  if (data && data.length > 0) {
+    const customApproveUsersData: Record<string, any[]> = {}
+    data.forEach((node: any) => {
+      if (
+        (isEmpty(node.tasks) &&
+          isEmpty(node.candidateUsers) &&
+          CandidateStrategy.START_USER_SELECT === node.candidateStrategy) ||
+        CandidateStrategy.APPROVE_USER_SELECT === node.candidateStrategy
+      ) {
+        skipNextAssigneesActivityNode.value.push(node)
+      }
+      if (node.candidateUsers && node.candidateUsers.length > 0) {
+        customApproveUsersData[node.id] = node.candidateUsers
+      }
+    })
+    await nextTick()
+    if (skipNextAssigneesTimelineRef.value && Object.keys(customApproveUsersData).length > 0) {
+      skipNextAssigneesTimelineRef.value.batchSetCustomApproveUsers(customApproveUsersData)
+    }
+  }
+}
+
 const selectNextAssigneesConfirm = (id: string, userList: any[]) => {
   approveReasonForm.nextAssignees[id] = userList?.map((item: any) => item.id)
+}
+const selectSkipNextAssigneesConfirm = (id: string, userList: any[]) => {
+  skipReasonForm.nextAssignees[id] = userList?.map((item: any) => item.id)
 }
 /** 审批通过时，校验每个自选审批人的节点是否都已配置了审批人 */
 const validateNextAssignees = () => {
@@ -783,6 +912,19 @@ const validateNextAssignees = () => {
 }
 
 /** 处理审批通过和不通过的操作 */
+const validateSkipNextAssignees = () => {
+  if (Object.keys(skipNextAssigneesActivityNode.value).length === 0) {
+    return true
+  }
+  for (const item of skipNextAssigneesActivityNode.value) {
+    if (isEmpty(skipReasonForm.nextAssignees[item.id])) {
+      message.warning('下一个节点的审批人不能为空')
+      return false
+    }
+  }
+  return true
+}
+
 const handleAudit = async (pass: boolean, formRef: FormInstance | undefined) => {
   formLoading.value = true
   try {
@@ -821,7 +963,7 @@ const handleAudit = async (pass: boolean, formRef: FormInstance | undefined) => 
       }
       await TaskApi.approveTask(data)
       popOverVisible.value.approve = false
-      nextAssigneesActivityNode.value = []
+      resetApproveNextAssignees()
       // 清理 Timeline 组件中的自定义审批人数据
       if (nextAssigneesTimelineRef.value) {
         nextAssigneesTimelineRef.value.batchSetCustomApproveUsers({})
@@ -840,6 +982,38 @@ const handleAudit = async (pass: boolean, formRef: FormInstance | undefined) => 
     // 重置表单
     formRef.resetFields()
     // 加载最新数据
+    reload()
+  } finally {
+    formLoading.value = false
+  }
+}
+
+/** 处理跳过 */
+const handleSkip = async () => {
+  formLoading.value = true
+  try {
+    if (!skipFormRef.value) return
+    await skipFormRef.value.validate()
+    // 校验流程表单必填字段
+    const valid = await validateNormalForm()
+    if (!valid) {
+      message.warning('表单校验不通过，请先完善表单!!')
+      return
+    }
+    const nextAssigneesValid = validateSkipNextAssignees()
+    if (!nextAssigneesValid) return
+    const variables = getUpdatedProcessInstanceVariables()
+    const data = {
+      id: runningTask.value.id,
+      reason: skipReasonForm.reason,
+      variables,
+      nextAssignees: skipReasonForm.nextAssignees
+    }
+    await TaskApi.skipTask(data)
+    popOverVisible.value.skip = false
+    skipFormRef.value.resetFields()
+    resetSkipNextAssignees()
+    message.success('跳过成功')
     reload()
   } finally {
     formLoading.value = false

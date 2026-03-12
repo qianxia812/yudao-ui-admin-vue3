@@ -113,13 +113,24 @@
                 Version V{{ version.versionNo || historyDrawerVersions.length - index }}
                 <span v-if="index === 0">（当前）</span>
               </div>
-              <el-tag
-                :type="getHistoryTagType(index, version.status)"
-                effect="plain"
-                :class="['history-item-status', getHistoryStatusClass(index, version.status)]"
-              >
-                {{ getHistoryStatusText(index, version.status) }}
-              </el-tag>
+              <div class="history-item-actions">
+                <el-tag
+                  :type="getHistoryTagType(index, version.status)"
+                  effect="plain"
+                  :class="['history-item-status', getHistoryStatusClass(index, version.status)]"
+                >
+                  {{ getHistoryStatusText(index, version.status) }}
+                </el-tag>
+                <el-button
+                  link
+                  type="primary"
+                  class="history-detail-btn"
+                  :disabled="!canOpenProcessDetail(version)"
+                  @click="openHistoryVersionDetail(version)"
+                >
+                  查看详情
+                </el-button>
+              </div>
             </div>
             <div class="history-item-line">发起人：{{ version.starterUserName || version.starterUserId || '--' }}</div>
             <div class="history-item-line">发起时间：{{ formatTime(version.startTime) }}</div>
@@ -404,6 +415,13 @@ const isCompletedVersion = (version: StageVersionVO) => {
   return normalizeStatus(version.status) === STAGE_STATUS.APPROVED
 }
 
+const canOpenProcessDetail = (version?: StageVersionVO) => {
+  if (!version) {
+    return false
+  }
+  return Boolean(version.processDefinitionId || version.processDefinitionKey || version.processInstanceId)
+}
+
 const openProcessDetail = async (version: StageVersionVO) => {
   const currentProjectId = detail.value.id ?? projectId.value
   const query = {
@@ -420,12 +438,24 @@ const openProcessDetail = async (version: StageVersionVO) => {
         projectId: query.projectId
       }
     })
-    return
+    return true
   }
   if (!query.processDefinitionId && !query.processDefinitionKey && !query.processInstanceId) {
-    return
+    return false
   }
   await push({ name: 'BpmProcessInstanceDirectCreate', query })
+  return true
+}
+
+const openHistoryVersionDetail = async (version: StageVersionVO) => {
+  if (!canOpenProcessDetail(version)) {
+    message.warning('当前版本缺少流程信息，无法查看详情')
+    return
+  }
+  const opened = await openProcessDetail(version)
+  if (opened) {
+    historyDrawerVisible.value = false
+  }
 }
 
 const handleCardClick = (version?: StageVersionVO) => {
@@ -902,10 +932,27 @@ onBeforeUnmount(() => {
   margin-bottom: 8px;
 }
 
+.history-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 .history-item-title {
   font-size: 15px;
   font-weight: 700;
   color: #1f2937;
+}
+
+:deep(.history-detail-btn.el-button.is-link) {
+  font-size: 13px;
+  padding: 0;
+  min-height: 22px;
+}
+
+.history-item.is-voided :deep(.history-detail-btn.el-button.is-link) {
+  color: #94a3b8;
 }
 
 .history-item-line {

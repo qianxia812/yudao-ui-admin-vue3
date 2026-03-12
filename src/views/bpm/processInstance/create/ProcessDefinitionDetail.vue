@@ -321,9 +321,17 @@ const submitForm = async () => {
     message.success('发起流程成功')
     // 跳转回去
     delView(unref(currentRoute))
-    await push({
-      name: 'BpmProcessInstanceMy'
-    })
+    const currentProjectId = Number(projectId.value)
+    if (currentProjectId) {
+      await push({
+        name: 'ProjectStageDetail',
+        params: { id: currentProjectId }
+      })
+    } else {
+      await push({
+        name: 'BpmProcessInstanceMy'
+      })
+    }
   } finally {
     processInstanceStartLoading.value = false
   }

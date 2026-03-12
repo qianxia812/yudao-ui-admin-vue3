@@ -96,6 +96,13 @@
             </div>
           </el-tab-pane>
         </el-tabs>
+
+        <div v-if="showReCreateButton" class="operation-bar">
+          <div class="operation-link" @click="handleReCreate">
+            <Icon icon="ep:refresh" :size="14" />
+            再次提交
+          </div>
+        </div>
       </el-scrollbar>
     </div>
   </ContentWrap>
@@ -106,7 +113,7 @@
 <script lang="ts" setup>
 import { formatDate } from '@/utils/formatTime'
 import { DICT_TYPE } from '@/utils/dict'
-import { BpmModelFormType, BpmModelType } from '@/utils/constants'
+import { BpmModelFormType, BpmModelType, BpmProcessInstanceStatus } from '@/utils/constants'
 import { setConfAndFields2 } from '@/utils/formCreate'
 import { registerComponent } from '@/utils/routerHelper'
 import type { ApiAttrs } from '@form-create/element-ui/types/config'
@@ -122,6 +129,7 @@ import ProcessInstanceSimpleViewer from '@/views/bpm/processInstance/detail/Proc
 import ProcessInstanceTaskList from '@/views/bpm/processInstance/detail/ProcessInstanceTaskList.vue'
 import ProcessInstanceTimeline from '@/views/bpm/processInstance/detail/ProcessInstanceTimeline.vue'
 import PrintDialog from '@/views/bpm/processInstance/detail/PrintDialog.vue'
+import { useUserStoreWithOut } from '@/store/modules/user'
 
 defineOptions({ name: 'ProjectProcessInstanceDetail' })
 
@@ -133,6 +141,7 @@ const props = defineProps<{
 }>()
 
 const { push, back } = useRouter()
+const userId = useUserStoreWithOut().getUser.id
 const message = useMessage()
 const processInstanceLoading = ref(false)
 const processInstance = ref<any>({})
@@ -257,6 +266,39 @@ const handleBack = async () => {
   back()
 }
 
+const isEndProcessStatus = (status?: number) => {
+  return (
+    status === BpmProcessInstanceStatus.APPROVE ||
+    status === BpmProcessInstanceStatus.REJECT ||
+    status === BpmProcessInstanceStatus.CANCEL
+  )
+}
+
+const showReCreateButton = computed(() => {
+  const starterId = Number(processInstance.value?.startUser?.id || 0)
+  const status = Number(processInstance.value?.status)
+  return (
+    !!userId &&
+    !!starterId &&
+    userId === starterId &&
+    isEndProcessStatus(status) &&
+    processDefinition.value?.formType === BpmModelFormType.NORMAL
+  )
+})
+
+const handleReCreate = async () => {
+  if (!processInstance.value?.id) {
+    return
+  }
+  await push({
+    name: 'BpmProcessInstanceCreate',
+    query: {
+      processInstanceId: processInstance.value.id,
+      projectId: props.projectId
+    }
+  })
+}
+
 onMounted(() => {
   getDetail()
 })
@@ -303,5 +345,33 @@ $process-header-height: 194px;
   :deep(.el-card) {
     border: none;
   }
+}
+
+.operation-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  border-top: 1px solid var(--el-border-color);
+  background: var(--el-bg-color);
+}
+
+.operation-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--el-text-color-primary);
+  font-weight: 600;
+}
+
+.operation-link:hover {
+  color: var(--el-color-primary);
+  background: var(--el-fill-color-light);
 }
 </style>

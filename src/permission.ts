@@ -53,7 +53,8 @@ const whiteList = [
   '/auth-redirect',
   '/bind',
   '/register',
-  '/oauthLogin/gitee'
+  '/oauthLogin/gitee',
+  '/bpm/mobile-form-preview'
 ]
 
 // 路由加载前

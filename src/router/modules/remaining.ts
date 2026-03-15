@@ -205,6 +205,16 @@ const remainingRouter: AppRouteRecordRaw[] = [
     }
   },
   {
+    path: '/bpm/mobile-form-preview',
+    component: () => import('@/views/bpm/processInstance/mobile/preview.vue'),
+    name: 'BpmMobileFormPreview',
+    meta: {
+      hidden: true,
+      noTagsView: true,
+      title: '移动端流程表单'
+    }
+  },
+  {
     path: '/403',
     component: () => import('@/views/Error/403.vue'),
     name: 'NoAccess',

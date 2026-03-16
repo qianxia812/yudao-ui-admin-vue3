@@ -19,10 +19,28 @@ export const getRefreshToken = () => {
   return wsCache.get(RefreshTokenKey)
 }
 
+// 设置AccessToken
+export const setAccessToken = (accessToken?: string) => {
+  if (accessToken) {
+    wsCache.set(AccessTokenKey, accessToken)
+    return
+  }
+  wsCache.delete(AccessTokenKey)
+}
+
+// 设置RefreshToken
+export const setRefreshToken = (refreshToken?: string) => {
+  if (refreshToken) {
+    wsCache.set(RefreshTokenKey, refreshToken)
+    return
+  }
+  wsCache.delete(RefreshTokenKey)
+}
+
 // 设置token
 export const setToken = (token: TokenType) => {
-  wsCache.set(RefreshTokenKey, token.refreshToken)
-  wsCache.set(AccessTokenKey, token.accessToken)
+  setRefreshToken(token.refreshToken)
+  setAccessToken(token.accessToken)
 }
 
 // 删除token

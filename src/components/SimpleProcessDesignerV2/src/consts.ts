@@ -467,7 +467,11 @@ export enum OperationButtonType {
   /**
    * 抄送
    */
-  COPY = 7
+  COPY = 8,
+  /**
+   * 跳过
+   */
+  SKIP = 7
 }
 
 /**
@@ -639,6 +643,7 @@ OPERATION_BUTTON_NAME.set(OperationButtonType.TRANSFER, '转办')
 OPERATION_BUTTON_NAME.set(OperationButtonType.DELEGATE, '委派')
 OPERATION_BUTTON_NAME.set(OperationButtonType.ADD_SIGN, '加签')
 OPERATION_BUTTON_NAME.set(OperationButtonType.RETURN, '退回')
+OPERATION_BUTTON_NAME.set(OperationButtonType.SKIP, '跳过')
 OPERATION_BUTTON_NAME.set(OperationButtonType.COPY, '抄送')
 
 // 默认的按钮权限设置
@@ -648,6 +653,7 @@ export const DEFAULT_BUTTON_SETTING: ButtonSetting[] = [
   { id: OperationButtonType.TRANSFER, displayName: '转办', enable: true },
   { id: OperationButtonType.DELEGATE, displayName: '委派', enable: true },
   { id: OperationButtonType.ADD_SIGN, displayName: '加签', enable: true },
+  { id: OperationButtonType.SKIP, displayName: '跳过', enable: true },
   { id: OperationButtonType.RETURN, displayName: '退回', enable: true }
 ]
 
@@ -658,6 +664,7 @@ export const TRANSACTOR_DEFAULT_BUTTON_SETTING: ButtonSetting[] = [
   { id: OperationButtonType.TRANSFER, displayName: '转办', enable: false },
   { id: OperationButtonType.DELEGATE, displayName: '委派', enable: false },
   { id: OperationButtonType.ADD_SIGN, displayName: '加签', enable: false },
+  { id: OperationButtonType.SKIP, displayName: '跳过', enable: false },
   { id: OperationButtonType.RETURN, displayName: '退回', enable: false }
 ]
 
@@ -668,6 +675,7 @@ export const START_USER_BUTTON_SETTING: ButtonSetting[] = [
   { id: OperationButtonType.TRANSFER, displayName: '转办', enable: false },
   { id: OperationButtonType.DELEGATE, displayName: '委派', enable: false },
   { id: OperationButtonType.ADD_SIGN, displayName: '加签', enable: false },
+  { id: OperationButtonType.SKIP, displayName: '跳过', enable: false },
   { id: OperationButtonType.RETURN, displayName: '退回', enable: false }
 ]
 

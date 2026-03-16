@@ -65,6 +65,10 @@ export const rejectTask = async (data: any) => {
   return await request.put({ url: '/bpm/task/reject', data })
 }
 
+export const skipTask = async (data: any) => {
+  return await request.put({ url: '/bpm/task/skip', data })
+}
+
 export const getTaskListByProcessInstanceId = async (processInstanceId: string) => {
   return await request.get({
     url: '/bpm/task/list-by-process-instance-id?processInstanceId=' + processInstanceId

@@ -97,8 +97,16 @@
           </el-tab-pane>
         </el-tabs>
 
-        <div v-if="showReCreateButton" class="operation-bar">
-          <div class="operation-link" @click="handleReCreate">
+        <div v-if="showPreChangeConfirmButton || showReCreateButton" class="operation-bar">
+          <el-button
+            v-if="showPreChangeConfirmButton"
+            type="warning"
+            :loading="confirmingPreChange"
+            @click="handleConfirmPreChange"
+          >
+            确认并返回审批
+          </el-button>
+          <div v-if="showReCreateButton" class="operation-link" @click="handleReCreate">
             <Icon icon="ep:refresh" :size="14" />
             再次提交
           </div>
@@ -118,6 +126,7 @@ import { setConfAndFields2 } from '@/utils/formCreate'
 import { registerComponent } from '@/utils/routerHelper'
 import type { ApiAttrs } from '@form-create/element-ui/types/config'
 import * as ProcessInstanceApi from '@/api/bpm/processInstance'
+import { StageApi } from '@/api/project/projectstage'
 import { FieldPermissionType } from '@/components/SimpleProcessDesignerV2/src/consts'
 import { TaskStatusEnum } from '@/api/bpm/task'
 import runningSvg from '@/assets/svgs/bpm/running.svg'
@@ -140,6 +149,7 @@ const props = defineProps<{
   projectId?: string
 }>()
 
+const route = useRoute()
 const { push, back } = useRouter()
 const userId = useUserStoreWithOut().getUser.id
 const message = useMessage()
@@ -149,6 +159,7 @@ const processDefinition = ref<any>({})
 const processModelView = ref<any>({})
 const activeTab = ref('form')
 const printRef = ref()
+const confirmingPreChange = ref(false)
 
 const auditIconsMap = {
   [TaskStatusEnum.RUNNING]: runningSvg,
@@ -264,6 +275,53 @@ const handleBack = async () => {
     return
   }
   back()
+}
+
+const getQueryValue = (value: unknown) => {
+  if (Array.isArray(value)) {
+    return value[0]
+  }
+  return value
+}
+
+const getQueryString = (value: unknown) => {
+  const result = getQueryValue(value)
+  if (result === undefined || result === null) {
+    return undefined
+  }
+  const str = String(result).trim()
+  return str || undefined
+}
+
+const showPreChangeConfirmButton = computed(() => getQueryString(route.query.preChangeConfirm) === '1')
+
+const handleConfirmPreChange = async () => {
+  if (!props.id) {
+    message.error('缺少 instanceId 参数')
+    return
+  }
+  confirmingPreChange.value = true
+  try {
+    await StageApi.confirmPreChange(String(props.id))
+    message.success('确认成功')
+    const returnProcessInstanceId = getQueryString(route.query.returnProcessInstanceId)
+    const returnTaskId = getQueryString(route.query.returnTaskId)
+    const returnActivityId = getQueryString(route.query.returnActivityId)
+    if (returnProcessInstanceId) {
+      await push({
+        name: 'BpmProcessInstanceDetail',
+        query: {
+          id: returnProcessInstanceId,
+          taskId: returnTaskId,
+          activityId: returnActivityId
+        }
+      })
+      return
+    }
+    back()
+  } finally {
+    confirmingPreChange.value = false
+  }
 }
 
 const isEndProcessStatus = (status?: number) => {

@@ -3,7 +3,7 @@ import { ArrowLeft, Loading } from '@element-plus/icons-vue'
 import type { ApiAttrs } from '@form-create/element-ui/types/config'
 import { ElButton, ElEmpty, ElIcon } from 'element-plus'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, toRaw } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
 import { getApprovalDetail } from '@/api/bpm/processInstance'
 import { FieldPermissionType } from '@/components/SimpleProcessDesignerV2/src/consts'
@@ -48,6 +48,7 @@ declare global {
 defineOptions({ name: 'BpmMobileFormPreview' })
 
 const route = useRoute()
+const router = useRouter()
 
 const WX_JS_SDK_URL = 'https://res.wx.qq.com/open/js/jweixin-1.6.0.js'
 const UNI_WEBVIEW_SDK_URL = 'https://unpkg.com/@dcloudio/uni-webview-js@0.0.3/index.js'
@@ -68,23 +69,35 @@ const detailForm = ref<{
   rule: any[]
   value: Record<string, any>
 }>({
-  option: {},
+  option: {
+    submitBtn: false,
+    resetBtn: false
+  },
   rule: [],
   value: {}
 })
 
 const title = computed(() => processInstance.value?.name || '流程表单')
 const hasFormContent = computed(() => detailForm.value.rule.length > 0)
-const processInstanceId = computed(() => getQueryString('processInstanceId'))
-const taskId = computed(() => getQueryString('taskId'))
-const activityId = computed(() => getQueryString('activityId'))
+const processInstanceId = computed(() =>
+  getQueryString(['processInstanceId', 'process_instance_id'])
+)
+const taskId = computed(() => getQueryString(['taskId', 'task_id']))
+const activityId = computed(() => getQueryString(['activityId', 'activity_id']))
+const backUrl = computed(() => getQueryString('backUrl'))
 
-function getQueryString(key: string) {
-  const value = route.query[key]
-  if (Array.isArray(value)) {
-    return value[0]
+function getQueryString(keys: string | string[]) {
+  const keyList = Array.isArray(keys) ? keys : [keys]
+  for (const key of keyList) {
+    const value = route.query[key]
+    if (Array.isArray(value) && value[0]) {
+      return value[0]
+    }
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim()
+    }
   }
-  return typeof value === 'string' ? value : ''
+  return ''
 }
 
 function safeClone<T>(value: T): T {
@@ -157,6 +170,10 @@ async function loadMiniAppSdk() {
   await loadScript(UNI_WEBVIEW_SDK_URL)
 }
 
+async function loadUniWebViewSdk() {
+  await loadScript(UNI_WEBVIEW_SDK_URL)
+}
+
 function emitToParent<T extends Record<string, any>>(message: ParentMessage<T>) {
   const payload = {
     source: 'bpm-mobile-form',
@@ -165,11 +182,8 @@ function emitToParent<T extends Record<string, any>>(message: ParentMessage<T>) 
     data: message.data
   }
 
-  if (envType.value === 'miniapp') {
-    if (window.uni?.postMessage) {
-      window.uni.postMessage({ data: payload })
-    }
-    return
+  if (window.uni?.postMessage) {
+    window.uni.postMessage({ data: payload })
   }
 
   if (window.parent !== window) {
@@ -224,15 +238,78 @@ function setFieldPermission(field: string, permission: string) {
   }
 }
 
+function hideBuiltInButtons() {
+  detailForm.value.option = {
+    ...detailForm.value.option,
+    submitBtn: false,
+    resetBtn: false
+  }
+}
+
+function getSameOriginParentWindow() {
+  if (window.parent === window) {
+    return null
+  }
+
+  try {
+    void window.parent.location.href
+    return window.parent
+  } catch {
+    return null
+  }
+}
+
+function navigateByHistory() {
+  if (window.history.length > 1) {
+    router.back()
+    return true
+  }
+  return false
+}
+
+function navigateByParentHistory() {
+  const parentWindow = getSameOriginParentWindow()
+  if (parentWindow?.history.length && parentWindow.history.length > 1) {
+    parentWindow.history.back()
+    return true
+  }
+  return false
+}
+
+function navigateByFallbackUrl() {
+  const targetUrl = backUrl.value || document.referrer
+  if (!targetUrl || targetUrl === window.location.href) {
+    return false
+  }
+  window.location.replace(targetUrl)
+  return true
+}
+
 function closeCurrentView() {
-  if (envType.value === 'miniapp') {
-    window.uni?.navigateBack?.({ delta: 1 })
+  if (window.uni?.navigateBack) {
+    window.uni.navigateBack({ delta: 1 })
     return
   }
 
-  if (window.parent === window && window.history.length > 1) {
-    window.history.back()
+  if (navigateByHistory()) {
+    return
   }
+
+  if (navigateByParentHistory()) {
+    return
+  }
+
+  if (navigateByFallbackUrl()) {
+    return
+  }
+
+  window.close()
+}
+
+function closeCurrentViewLater() {
+  window.setTimeout(() => {
+    closeCurrentView()
+  }, 80)
 }
 
 function handleBack() {
@@ -243,7 +320,7 @@ function handleBack() {
       taskId: taskId.value
     }
   })
-  closeCurrentView()
+  closeCurrentViewLater()
 }
 
 function handleConfirm() {
@@ -256,7 +333,7 @@ function handleConfirm() {
       fieldPermissions: safeClone(fieldPermissions.value)
     }
   })
-  closeCurrentView()
+  closeCurrentViewLater()
 }
 
 async function getDetail() {
@@ -302,6 +379,7 @@ async function getDetail() {
         processInstance.value.formVariables || {}
       )
     }
+    hideBuiltInButtons()
 
     await nextTick()
     fApi.value?.btn.show(false)
@@ -361,6 +439,12 @@ async function initPage() {
         }
       })
       return
+    }
+  } else {
+    try {
+      await loadUniWebViewSdk()
+    } catch (sdkError) {
+      console.warn('UniApp WebView SDK 加载失败，将仅使用浏览器回退能力', sdkError)
     }
   }
 

@@ -582,6 +582,7 @@ import {
   CandidateStrategy
 } from '@/components/SimpleProcessDesignerV2/src/consts'
 import { BpmModelFormType, BpmProcessInstanceStatus } from '@/utils/constants'
+import { ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import SignDialog from './SignDialog.vue'
 import ProcessInstanceTimeline from '../detail/ProcessInstanceTimeline.vue'
@@ -589,6 +590,7 @@ import { isEmpty } from '@/utils/is'
 
 defineOptions({ name: 'ProcessInstanceBtnContainer' })
 
+const route = useRoute()
 const router = useRouter() // 路由
 const message = useMessage() // 消息弹窗
 
@@ -961,7 +963,38 @@ const handleAudit = async (pass: boolean, formRef: FormInstance | undefined) => 
         // @ts-ignore
         data.variables = approveForm.value.value
       }
-      await TaskApi.approveTask(data)
+      const preChangeInstanceId = (await TaskApi.approveTask(data))?.trim?.() || ''
+      if (preChangeInstanceId) {
+        const returnActivityId = Array.isArray(route.query.activityId)
+          ? route.query.activityId[0]
+          : route.query.activityId
+        popOverVisible.value.approve = false
+        resetApproveNextAssignees()
+        if (nextAssigneesTimelineRef.value) {
+          nextAssigneesTimelineRef.value.batchSetCustomApproveUsers({})
+        }
+        formRef.resetFields()
+        await ElMessageBox.alert('前置阶段有变动，请前往查看', '提示', {
+          confirmButtonText: '前往查看',
+          type: 'warning',
+          showClose: false,
+          closeOnClickModal: false,
+          closeOnPressEscape: false
+        })
+        await router.push({
+          name: 'ProjectProcessInstanceDetail',
+          query: {
+            id: preChangeInstanceId,
+            preChangeConfirm: '1',
+            returnProcessInstanceId: props.processInstance?.id
+              ? String(props.processInstance.id)
+              : undefined,
+            returnTaskId: runningTask.value?.id ? String(runningTask.value.id) : undefined,
+            returnActivityId: returnActivityId ? String(returnActivityId) : undefined
+          }
+        })
+        return
+      }
       popOverVisible.value.approve = false
       resetApproveNextAssignees()
       // 清理 Timeline 组件中的自定义审批人数据

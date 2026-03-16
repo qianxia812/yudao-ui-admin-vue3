@@ -58,7 +58,7 @@ export const getTaskManagerPage = async (params: any) => {
 }
 
 export const approveTask = async (data: any) => {
-  return await request.put({ url: '/bpm/task/approve', data })
+  return await request.put<string>({ url: '/bpm/task/approve', data })
 }
 
 export const rejectTask = async (data: any) => {

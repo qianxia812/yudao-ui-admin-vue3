@@ -412,7 +412,9 @@ const openHistoryDrawer = (stage: StageCardVO) => {
 }
 
 const isCompletedVersion = (version: StageVersionVO) => {
-  return normalizeStatus(version.status) === STAGE_STATUS.APPROVED
+  const status = normalizeStatus(version.status);
+  return status === STAGE_STATUS.APPROVED || status === STAGE_STATUS.APPROVING || status ===
+    STAGE_STATUS.REJECTED || status === STAGE_STATUS.CANCELED
 }
 
 const canOpenProcessDetail = (version?: StageVersionVO) => {

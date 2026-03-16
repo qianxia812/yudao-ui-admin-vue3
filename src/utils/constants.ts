@@ -434,15 +434,16 @@ export const PROJECT_STATUS = {
   NOT_START: 0,
   RUNNING: 1,
   COMPLETED: 2,
-  TERMINATED: 3,
-  ARCHIVED: 4
+  ARCHIVED: 3,
+  CANCELED: 4,
+  TERMINATED: 5
 } as const
 
 export const PROJECT_STATUS_OPTIONS = [
   { value: PROJECT_STATUS.NOT_START, label: '未开始', type: 'warning' },
   { value: PROJECT_STATUS.RUNNING, label: '进行中', type: 'primary' },
   { value: PROJECT_STATUS.COMPLETED, label: '已完成', type: 'success' },
-  { value: PROJECT_STATUS.TERMINATED, label: '已终止', type: 'danger' },
+  { value: PROJECT_STATUS.CANCELED, label: '已取消', type: 'info' },
   { value: PROJECT_STATUS.ARCHIVED, label: '已归档', type: 'info' }
 ] as const
 

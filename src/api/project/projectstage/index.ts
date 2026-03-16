@@ -176,5 +176,13 @@ export const StageApi = {
       url: '/project/stage-instance/timeline',
       params: { projectId, selectedGroupCode }
     })
+  },
+
+  // 确认前置阶段变更
+  confirmPreChange: async (instanceId: string) => {
+    return await request.get({
+      url: '/project/stage-instance/confirm-pre-change',
+      params: { instanceId }
+    })
   }
 }

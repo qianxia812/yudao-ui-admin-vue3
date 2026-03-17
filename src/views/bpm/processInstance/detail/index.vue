@@ -8,9 +8,18 @@
           :src="auditIconsMap[processInstance.status]"
           alt=""
         />
-        <div class="flex">
+        <div class="flex items-center">
           <div class="text-#878c93 h-15px">编号：{{ id }}</div>
           <Icon icon="ep:printer" class="ml-15px cursor-pointer" @click="handlePrint" />
+          <el-button
+            v-if="showBackToApproveButton"
+            link
+            type="primary"
+            class="ml-12px"
+            @click="handleBackToApprove"
+          >
+            回到审批
+          </el-button>
         </div>
         <el-divider class="!my-8px" />
         <div class="flex items-center gap-5 mb-10px h-40px">
@@ -160,6 +169,8 @@ const props = defineProps<{
   taskId?: string // 任务编号
   activityId?: string //流程活动编号，用于抄送查看
 }>()
+const route = useRoute()
+const { push } = useRouter()
 const message = useMessage() // 消息弹窗
 const processInstanceLoading = ref(false) // 流程实例的加载中
 const processInstance = ref<any>({}) // 流程实例
@@ -182,6 +193,43 @@ const detailForm = ref({
 }) // 流程实例的表单详情
 
 const writableFields: Array<string> = [] // 表单可以编辑的字段
+
+const getQueryString = (value: unknown) => {
+  const tempValue = Array.isArray(value) ? value[0] : value
+  if (tempValue === undefined || tempValue === null) {
+    return ''
+  }
+  return String(tempValue).trim()
+}
+
+const returnProcessInstanceId = computed(() => getQueryString(route.query.returnProcessInstanceId))
+const returnTaskId = computed(() => getQueryString(route.query.returnTaskId))
+const returnActivityId = computed(() => getQueryString(route.query.returnActivityId))
+const returnRouteName = computed(() => getQueryString(route.query.returnRouteName))
+const returnProjectId = computed(() => getQueryString(route.query.returnProjectId))
+const showBackToApproveButton = computed(() => !!returnProcessInstanceId.value)
+
+const handleBackToApprove = async () => {
+  if (!returnProcessInstanceId.value) {
+    return
+  }
+  const query: Record<string, string> = {
+    id: returnProcessInstanceId.value
+  }
+  if (returnTaskId.value) {
+    query.taskId = returnTaskId.value
+  }
+  if (returnActivityId.value) {
+    query.activityId = returnActivityId.value
+  }
+  if (returnProjectId.value) {
+    query.projectId = returnProjectId.value
+  }
+  await push({
+    name: returnRouteName.value || 'BpmProcessInstanceDetail',
+    query
+  })
+}
 
 /** 获得详情 */
 const getDetail = () => {

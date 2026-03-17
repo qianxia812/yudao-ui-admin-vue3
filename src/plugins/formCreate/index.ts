@@ -71,6 +71,7 @@ import DictSelect from '@/components/FormCreate/src/components/DictSelect.vue'
 import DeptSelect from '@/components/FormCreate/src/components/DeptSelect.vue'
 import IframeComponent from '@/components/FormCreate/src/components/IframeComponent.vue'
 import AreaSelect from '@/components/FormCreate/src/components/AreaSelect.vue'
+import RelatedProcessInstanceSelect from '@/components/FormCreate/src/components/RelatedProcessInstanceSelect.vue'
 
 const UserSelect = useApiSelect({
   name: 'UserSelect',
@@ -118,6 +119,7 @@ const components = [
   Editor,
   IframeComponent,
   AreaSelect,
+  RelatedProcessInstanceSelect,
   ElCollapse,
   ElCollapseItem,
   ElCard

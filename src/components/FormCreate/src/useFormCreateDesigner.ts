@@ -6,7 +6,8 @@ import {
   useUploadImgRule,
   useUploadImgsRule,
   useIframeRule,
-  useAreaSelectRule
+  useAreaSelectRule,
+  useRelatedProcessInstanceRule
 } from './config'
 import { Ref } from 'vue'
 import { Menu } from '@/components/FormCreate/src/type'
@@ -29,6 +30,7 @@ export const useFormCreateDesigner = async (designer: Ref) => {
   const uploadFileRule = useUploadFileRule()
   const uploadImgRule = useUploadImgRule()
   const uploadImgsRule = useUploadImgsRule()
+  const relatedProcessInstanceRule = useRelatedProcessInstanceRule()
 
   /**
    * 构建表单组件
@@ -40,7 +42,15 @@ export const useFormCreateDesigner = async (designer: Ref) => {
     designer.value?.removeMenuItem('fcEditor')
     const iframeRule = useIframeRule()
     const areaSelectRule = useAreaSelectRule()
-    const components = [editorRule, uploadFileRule, uploadImgRule, uploadImgsRule, iframeRule, areaSelectRule]
+    const components = [
+      editorRule,
+      uploadFileRule,
+      uploadImgRule,
+      uploadImgsRule,
+      iframeRule,
+      areaSelectRule,
+      relatedProcessInstanceRule
+    ]
     components.forEach((component) => {
       // 插入组件规则
       designer.value?.addComponent(component)

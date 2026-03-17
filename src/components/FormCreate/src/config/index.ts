@@ -6,6 +6,7 @@ import { useEditorRule } from './useEditorRule'
 import { useSelectRule } from './useSelectRule'
 import { useIframeRule } from './useIframeRule'
 import { useAreaSelectRule } from './useAreaSelectRule'
+import { useRelatedProcessInstanceRule } from './useRelatedProcessInstanceRule'
 
 export {
   useUploadFileRule,
@@ -15,5 +16,6 @@ export {
   useEditorRule,
   useSelectRule,
   useIframeRule,
-  useAreaSelectRule
+  useAreaSelectRule,
+  useRelatedProcessInstanceRule
 }

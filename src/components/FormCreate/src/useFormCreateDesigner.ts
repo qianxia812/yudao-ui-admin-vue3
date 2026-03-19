@@ -6,7 +6,12 @@ import {
   useUploadImgRule,
   useUploadImgsRule,
   useIframeRule,
-  useAreaSelectRule
+  useAreaSelectRule,
+  useAmountRule,
+  useSignatureRule,
+  useRelatedProcessInstanceRule,
+  useRelatedFormSelectRule,
+  useRelatedProjectRule
 } from './config'
 import { Ref } from 'vue'
 import { Menu } from '@/components/FormCreate/src/type'
@@ -29,6 +34,11 @@ export const useFormCreateDesigner = async (designer: Ref) => {
   const uploadFileRule = useUploadFileRule()
   const uploadImgRule = useUploadImgRule()
   const uploadImgsRule = useUploadImgsRule()
+  const amountRule = useAmountRule()
+  const signatureRule = useSignatureRule()
+  const relatedProcessInstanceRule = useRelatedProcessInstanceRule()
+  const relatedProjectRule = useRelatedProjectRule()
+  const relatedFormSelectRule = useRelatedFormSelectRule()
 
   /**
    * 构建表单组件
@@ -40,7 +50,18 @@ export const useFormCreateDesigner = async (designer: Ref) => {
     designer.value?.removeMenuItem('fcEditor')
     const iframeRule = useIframeRule()
     const areaSelectRule = useAreaSelectRule()
-    const components = [editorRule, uploadFileRule, uploadImgRule, uploadImgsRule, iframeRule, areaSelectRule]
+    const components = [
+      editorRule,
+      uploadFileRule,
+      uploadImgRule,
+      uploadImgsRule,
+      amountRule,
+      signatureRule,
+      iframeRule,
+      areaSelectRule,
+      relatedProcessInstanceRule,
+      relatedProjectRule
+    ]
     components.forEach((component) => {
       // 插入组件规则
       designer.value?.addComponent(component)
@@ -51,6 +72,7 @@ export const useFormCreateDesigner = async (designer: Ref) => {
         label: component.label
       })
     })
+    designer.value?.addComponent(relatedFormSelectRule)
   }
 
   const userSelectRule = useSelectRule({

@@ -21,6 +21,13 @@ export const getProcessDefinitionList = async (params) => {
   })
 }
 
+export const getProcessDefinitionListAll = async (params) => {
+  return await request.get({
+    url: '/bpm/process-definition/listAll',
+    params
+  })
+}
+
 export const getSimpleProcessDefinitionList = async () => {
   return await request.get({
     url: '/bpm/process-definition/simple-list'

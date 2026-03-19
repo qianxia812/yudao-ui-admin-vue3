@@ -1,10 +1,11 @@
 <template>
   <ContentWrap :body-style="{ padding: '0px' }" class="!mb-0">
-    <!-- 表单设计器 -->
     <div
-      class="h-[calc(100vh-var(--top-tool-height)-var(--tags-view-height)-var(--app-content-padding)-var(--app-content-padding)-2px)]"
+      class="designer-wrapper h-[calc(100vh-var(--top-tool-height)-var(--tags-view-height)-var(--app-content-padding)-var(--app-content-padding)-2px)]"
+      :class="{ 'relation-mode': relationPanelVisible }"
+      @click.capture="handleDesignerClickCapture"
     >
-      <fc-designer class="my-designer" ref="designer" :config="designerConfig">
+      <fc-designer ref="designer" class="my-designer" :config="designerConfig">
         <template #handle>
           <el-button size="small" type="success" plain @click="handleSave">
             <Icon class="mr-5px" icon="ep:plus" />
@@ -12,10 +13,58 @@
           </el-button>
         </template>
       </fc-designer>
+
+      <el-tooltip content="关联" placement="right" :hide-after="0">
+        <div
+          class="designer-relation-entry"
+          :class="{ active: relationPanelVisible }"
+          @click="handleToggleRelationPanel"
+        >
+          <i class="fc-icon icon-link"></i>
+        </div>
+      </el-tooltip>
+
+      <div v-show="relationPanelVisible" class="designer-relation-panel">
+        <div class="panel-title">关联表单</div>
+        <el-input
+          v-model="relationSearchName"
+          class="mb-10px"
+          placeholder="请输入流程名称"
+          clearable
+        >
+          <template #prefix>
+            <Icon icon="ep:search" />
+          </template>
+        </el-input>
+
+        <el-table
+          v-loading="relationPanelLoading"
+          :data="filteredRelationDefinitionList"
+          height="calc(100% - 72px)"
+          @row-click="handleChooseRelatedDefinition"
+        >
+          <el-table-column label="流程名称" min-width="140" show-overflow-tooltip>
+            <template #default="{ row }">
+              {{ row.name }}
+            </template>
+          </el-table-column>
+          <el-table-column label="流程分类" min-width="100" show-overflow-tooltip>
+            <template #default="{ row }">
+              {{ getCategoryName(row.category) }}
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="64" align="center">
+            <template #default="{ row }">
+              <el-button link type="primary" @click.stop="handleChooseRelatedDefinition(row)">
+                添加
+              </el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
     </div>
   </ContentWrap>
 
-  <!-- 表单保存的弹窗 -->
   <Dialog v-model="dialogVisible" title="保存表单" width="600">
     <el-form ref="formRef" :model="formData" :rules="formRules" label-width="80px">
       <el-form-item label="表单名" prop="name">
@@ -37,63 +86,111 @@
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button :disabled="formLoading" type="primary" @click="submitForm">确 定</el-button>
-      <el-button @click="dialogVisible = false">取 消</el-button>
+      <el-button :disabled="formLoading" type="primary" @click="submitForm">确定</el-button>
+      <el-button @click="dialogVisible = false">取消</el-button>
     </template>
   </Dialog>
+
+  <el-dialog
+    v-model="relationFieldDialogVisible"
+    title="设置关联字段"
+    width="560px"
+    append-to-body
+    destroy-on-close
+  >
+    <div v-loading="relationFieldLoading">
+      <el-checkbox
+        :model-value="relationFieldAllChecked"
+        :indeterminate="relationFieldIndeterminate"
+        @change="(value) => handleRelationFieldAllChange(!!value)"
+      >
+        全选
+      </el-checkbox>
+
+      <el-empty
+        v-if="relationFieldOptions.length === 0"
+        description="未获取到可关联字段"
+        :image-size="100"
+      />
+      <el-checkbox-group v-else v-model="relationSelectedFields" class="mt-10px relation-field-list">
+        <el-checkbox
+          v-for="field in relationFieldOptions"
+          :key="field.value"
+          :value="field.value"
+          class="!ml-0 mb-8px mr-12px"
+        >
+          {{ field.label }}
+        </el-checkbox>
+      </el-checkbox-group>
+    </div>
+
+    <template #footer>
+      <el-button @click="relationFieldDialogVisible = false">取消</el-button>
+      <el-button type="primary" @click="handleConfirmRelationFields">确定</el-button>
+    </template>
+  </el-dialog>
 </template>
+
 <script lang="ts" setup>
 import { DICT_TYPE, getIntDictOptions } from '@/utils/dict'
-import { CommonStatusEnum } from '@/utils/constants'
+import { CommonStatusEnum, BpmModelFormType } from '@/utils/constants'
 import * as FormApi from '@/api/bpm/form'
-import FcDesigner from '@form-create/designer'
-import { encodeConf, encodeFields, setConfAndFields } from '@/utils/formCreate'
+import * as DefinitionApi from '@/api/bpm/definition'
+import { CategoryApi, type CategoryVO } from '@/api/bpm/category'
+import { encodeConf, encodeFields, decodeFields, setConfAndFields } from '@/utils/formCreate'
 import { useTagsViewStore } from '@/store/modules/tagsView'
 import { useFormCreateDesigner } from '@/components/FormCreate'
 import { useRoute } from 'vue-router'
+import { createRelatedFormSelectRule } from '@/components/FormCreate/src/config'
 
 defineOptions({ name: 'BpmFormEditor' })
 
-const { t } = useI18n() // 国际化
-const message = useMessage() // 消息
-const route = useRoute() // 路由
-const { push, currentRoute } = useRouter() // 路由
-const { query } = useRoute() // 路由信息
-const { delView } = useTagsViewStore() // 视图操作
+interface FieldOption {
+  label: string
+  value: string
+}
 
-// 表单设计器配置
+const { t } = useI18n()
+const message = useMessage()
+const route = useRoute()
+const { push, currentRoute } = useRouter()
+const { query } = route
+const { delView } = useTagsViewStore()
+
 const designerConfig = ref({
-  switchType: [], // 是否可以切换组件类型,或者可以相互切换的字段
-  autoActive: true, // 是否自动选中拖入的组件
-  useTemplate: false, // 是否生成vue2语法的模板组件
+  switchType: [],
+  autoActive: true,
+  useTemplate: false,
   formOptions: {
     form: {
-      labelWidth: '100px' // 设置默认的 label 宽度为 100px
+      labelWidth: '100px'
     }
-  }, // 定义表单配置默认值
-  fieldReadonly: false, // 配置field是否可以编辑
-  hiddenDragMenu: false, // 隐藏拖拽操作按钮
-  hiddenDragBtn: false, // 隐藏拖拽按钮
-  hiddenMenu: [], // 隐藏部分菜单
-  hiddenItem: [], // 隐藏部分组件
-  hiddenItemConfig: {}, // 隐藏组件的部分配置项
-  disabledItemConfig: {}, // 禁用组件的部分配置项
-  showSaveBtn: false, // 是否显示保存按钮
-  showConfig: true, // 是否显示右侧的配置界面
-  showBaseForm: true, // 是否显示组件的基础配置表单
-  showControl: true, // 是否显示组件联动
-  showPropsForm: true, // 是否显示组件的属性配置表单
-  showEventForm: true, // 是否显示组件的事件配置表单
-  showValidateForm: true, // 是否显示组件的验证配置表单
-  showFormConfig: true, // 是否显示表单配置
-  showInputData: true, // 是否显示录入按钮
-  showDevice: true, // 是否显示多端适配选项
-  appendConfigData: [] // 定义渲染规则所需的formData
+  },
+  fieldReadonly: false,
+  hiddenDragMenu: false,
+  hiddenDragBtn: false,
+  hiddenMenu: [],
+  hiddenItem: [],
+  hiddenItemConfig: {},
+  disabledItemConfig: {},
+  showSaveBtn: false,
+  showConfig: true,
+  showBaseForm: true,
+  showControl: true,
+  showPropsForm: true,
+  showEventForm: true,
+  showValidateForm: true,
+  showFormConfig: true,
+  showInputData: true,
+  showDevice: true,
+  appendConfigData: []
 })
-const designer = ref() // 表单设计器
-useFormCreateDesigner(designer) // 表单设计器增强
-const dialogVisible = ref(false) // 弹窗是否展示
-const formLoading = ref(false) // 表单的加载中：提交的按钮禁用
+
+const designer = ref()
+useFormCreateDesigner(designer)
+
+const dialogVisible = ref(false)
+const formLoading = ref(false)
 const formData = ref({
   name: '',
   status: CommonStatusEnum.ENABLE,
@@ -101,27 +198,238 @@ const formData = ref({
 })
 const formRules = reactive({
   name: [{ required: true, message: '表单名不能为空', trigger: 'blur' }],
-  status: [{ required: true, message: '开启状态不能为空', trigger: 'blur' }]
+  status: [{ required: true, message: '启用状态不能为空', trigger: 'blur' }]
 })
-const formRef = ref() // 表单 Ref
+const formRef = ref()
 
-/** 处理保存按钮 */
+const relationPanelVisible = ref(false)
+const relationPanelLoading = ref(false)
+const relationSearchName = ref('')
+const relationDefinitionList = ref<any[]>([])
+const relationCategoryList = ref<CategoryVO[]>([])
+
+const relationFieldDialogVisible = ref(false)
+const relationFieldLoading = ref(false)
+const relationCurrentDefinition = ref<any>()
+const relationFieldOptions = ref<FieldOption[]>([])
+const relationSelectedFields = ref<string[]>([])
+
+const categoryNameMap = computed(() => {
+  const map = new Map<string, string>()
+  relationCategoryList.value.forEach((item) => {
+    map.set(item.code, item.name)
+  })
+  return map
+})
+
+const filteredRelationDefinitionList = computed(() => {
+  const keyword = relationSearchName.value.trim().toLowerCase()
+  if (!keyword) {
+    return relationDefinitionList.value
+  }
+  return relationDefinitionList.value.filter((item) =>
+    String(item?.name || '')
+      .toLowerCase()
+      .includes(keyword)
+  )
+})
+
+const relationFieldAllChecked = computed(() => {
+  if (relationFieldOptions.value.length === 0) {
+    return false
+  }
+  return relationSelectedFields.value.length === relationFieldOptions.value.length
+})
+
+const relationFieldIndeterminate = computed(() => {
+  return (
+    relationSelectedFields.value.length > 0 &&
+    relationSelectedFields.value.length < relationFieldOptions.value.length
+  )
+})
+
+const getDesignerSetupState = () => designer.value?.setupState
+
+const setDesignerActiveModule = (module: string) => {
+  const setupState = getDesignerSetupState()
+  if (!setupState) {
+    return
+  }
+  setupState.activeModule = module
+}
+
+const loadRelationDefinitionList = async () => {
+  relationPanelLoading.value = true
+  try {
+    const [categoryData, definitionData] = await Promise.all([
+      CategoryApi.getCategorySimpleList(),
+      DefinitionApi.getProcessDefinitionList({
+        suspensionState: 1
+      })
+    ])
+    relationCategoryList.value = categoryData || []
+    relationDefinitionList.value = definitionData || []
+  } catch {
+    relationDefinitionList.value = []
+    relationCategoryList.value = []
+    message.error('加载关联表单列表失败')
+  } finally {
+    relationPanelLoading.value = false
+  }
+}
+
+const getCategoryName = (categoryCode: string) => {
+  return categoryNameMap.value.get(categoryCode) || '--'
+}
+
+const extractFieldOptions = (rules: any[]): FieldOption[] => {
+  const options: FieldOption[] = []
+  const seen = new Set<string>()
+
+  const walk = (item: any) => {
+    if (!item) {
+      return
+    }
+    if (Array.isArray(item)) {
+      item.forEach((node) => walk(node))
+      return
+    }
+    if (typeof item !== 'object') {
+      return
+    }
+
+    const field = typeof item.field === 'string' ? item.field.trim() : ''
+    const title =
+      (typeof item.title === 'string' && item.title.trim()) ||
+      (typeof item.props?.label === 'string' && item.props.label.trim()) ||
+      ''
+    if (field && !seen.has(field)) {
+      seen.add(field)
+      options.push({
+        label: title || '未命名字段',
+        value: field
+      })
+    }
+
+    if (Array.isArray(item.children)) {
+      walk(item.children)
+    }
+    if (Array.isArray(item.control)) {
+      item.control.forEach((controlItem: any) => {
+        if (controlItem?.rule) {
+          walk(controlItem.rule)
+        }
+      })
+    }
+  }
+
+  walk(rules)
+  return options
+}
+
+const loadDefinitionFieldOptions = async (definitionId: string | number) => {
+  const detail = await DefinitionApi.getProcessDefinition(String(definitionId))
+  if (!detail || Number(detail.formType) !== BpmModelFormType.NORMAL) {
+    return []
+  }
+  let decodedFields: any[] = []
+  try {
+    decodedFields = decodeFields(detail.formFields || [])
+  } catch {
+    decodedFields = []
+  }
+  return extractFieldOptions(decodedFields)
+}
+
+const handleToggleRelationPanel = async () => {
+  if (relationPanelVisible.value) {
+    relationPanelVisible.value = false
+    setDesignerActiveModule('base')
+    return
+  }
+  relationPanelVisible.value = true
+  setDesignerActiveModule('base')
+  if (relationDefinitionList.value.length === 0) {
+    await loadRelationDefinitionList()
+  }
+}
+
+const handleChooseRelatedDefinition = async (row: any) => {
+  relationCurrentDefinition.value = row
+  relationFieldDialogVisible.value = true
+  relationFieldLoading.value = true
+  try {
+    relationFieldOptions.value = await loadDefinitionFieldOptions(row.id)
+    relationSelectedFields.value = []
+  } catch {
+    relationFieldOptions.value = []
+    relationSelectedFields.value = []
+    message.error('加载关联字段失败')
+  } finally {
+    relationFieldLoading.value = false
+  }
+}
+
+const handleRelationFieldAllChange = (checked: boolean) => {
+  relationSelectedFields.value = checked ? relationFieldOptions.value.map((item) => item.value) : []
+}
+
+const handleConfirmRelationFields = () => {
+  if (!relationCurrentDefinition.value) {
+    return
+  }
+  const payload = {
+    title: `关联表单(${relationCurrentDefinition.value.name})`,
+    relatedDefinitionId: relationCurrentDefinition.value.id,
+    relatedDefinitionKey: relationCurrentDefinition.value.key,
+    relatedDefinitionName: relationCurrentDefinition.value.name,
+    relatedFields: relationSelectedFields.value,
+    relatedFieldOptions: relationFieldOptions.value
+  }
+  const newRule = createRelatedFormSelectRule(payload)
+  const currentRules = designer.value?.getRule() || []
+  currentRules.push(newRule)
+  designer.value?.setRule(currentRules)
+  relationFieldDialogVisible.value = false
+  relationPanelVisible.value = false
+  setDesignerActiveModule('base')
+  message.success('关联表单组件已添加')
+}
+
+const handleDesignerClickCapture = (event: MouseEvent) => {
+  if (!relationPanelVisible.value) {
+    return
+  }
+  const target = event.target as HTMLElement | null
+  if (!target) {
+    return
+  }
+  if (target.closest('.designer-relation-entry') || target.closest('.designer-relation-panel')) {
+    return
+  }
+  if (target.closest('._fc-l-menu-item') || target.closest('._fc-l-tab')) {
+    relationPanelVisible.value = false
+  }
+}
+
 const handleSave = () => {
   dialogVisible.value = true
 }
 
-/** 提交表单 */
 const submitForm = async () => {
-  // 校验表单
-  if (!formRef) return
+  if (!formRef.value) {
+    return
+  }
   const valid = await formRef.value.validate()
-  if (!valid) return
-  // 提交请求
+  if (!valid) {
+    return
+  }
+
   formLoading.value = true
   try {
     const data = formData.value as FormApi.FormVO
-    data.conf = encodeConf(designer) // 表单配置
-    data.fields = encodeFields(designer) // 表单字段
+    data.conf = encodeConf(designer)
+    data.fields = encodeFields(designer)
     if (!data.id) {
       await FormApi.createForm(data)
       message.success(t('common.createSuccess'))
@@ -135,20 +443,20 @@ const submitForm = async () => {
     formLoading.value = false
   }
 }
-/** 关闭按钮 */
+
 const close = () => {
   delView(unref(currentRoute))
   push('/bpm/manager/form')
 }
 
-/** 初始化 **/
 onMounted(async () => {
-  // 场景一：新增表单
+  await nextTick()
+
   const id = query.id as unknown as number
   if (!id) {
     return
   }
-  // 场景二：修改表单
+
   const data = await FormApi.getForm(id)
   formData.value = data
   setConfAndFields(designer, data.conf, data.fields)
@@ -156,19 +464,80 @@ onMounted(async () => {
   if (route.query.type !== 'copy') {
     return
   }
-  // 场景三： 复制表单
-  const { id: foo, ...copied } = data
+  const { id: currentId, ...copied } = data
+  void currentId
   formData.value = copied
   formData.value.name += '_copy'
 })
 </script>
 
-<style>
+<style lang="scss">
 .my-designer {
   ._fc-l,
   ._fc-m,
   ._fc-r {
     border-top: none;
   }
+}
+
+.designer-wrapper {
+  position: relative;
+
+  &.relation-mode {
+    ._fc-l {
+      visibility: hidden;
+      pointer-events: none;
+    }
+  }
+
+  .designer-relation-entry {
+    position: absolute;
+    left: 0;
+    top: 120px;
+    z-index: 5;
+    display: flex;
+    width: 40px;
+    height: 40px;
+    cursor: pointer;
+    background: #fff;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+
+    &.active {
+      color: #2e73ff;
+      background: #ecf5ff;
+
+      .fc-icon {
+        color: #2e73ff;
+      }
+    }
+  }
+
+  .designer-relation-panel {
+    position: absolute;
+    top: 0;
+    left: 40px;
+    z-index: 4;
+    display: flex;
+    width: 266px;
+    height: 100%;
+    padding: 12px;
+    background: #fff;
+    border-right: 1px solid var(--el-border-color-light);
+    flex-direction: column;
+    box-sizing: border-box;
+
+    .panel-title {
+      margin-bottom: 10px;
+      font-size: 14px;
+      font-weight: 600;
+    }
+  }
+}
+
+.relation-field-list {
+  max-height: 320px;
+  overflow: auto;
 }
 </style>

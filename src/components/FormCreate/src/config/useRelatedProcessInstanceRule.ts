@@ -11,13 +11,13 @@ export const useRelatedProcessInstanceRule = () => {
   const processDefinitionOptions = ref<{ label: string; value: string }[]>([])
 
   onMounted(async () => {
-    const data = await DefinitionApi.getProcessDefinitionList({
+    const data = await DefinitionApi.getProcessDefinitionListAll({
       suspensionState: 1
     })
     processDefinitionOptions.value = (data || [])
       .filter((item: any) => item?.key)
       .map((item: any) => ({
-        label: `${item.name} (${item.key})`,
+        label: item.name,
         value: item.key
       }))
   })

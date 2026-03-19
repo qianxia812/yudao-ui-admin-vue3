@@ -84,6 +84,14 @@
 
         <el-col :span="15" class="h-full">
           <div class="panel-box h-full flex flex-col">
+            <div class="mb-10px flex justify-center">
+              <el-radio-group v-model="instanceSource" @change="handleSourceChange">
+                <el-radio-button value="done">我处理的</el-radio-button>
+                <el-radio-button value="start">我发起的</el-radio-button>
+                <el-radio-button value="copy">抄送我的</el-radio-button>
+              </el-radio-group>
+            </div>
+
             <div class="mb-10px flex items-center gap-8px">
               <el-input
                 v-model="instanceQuery.name"
@@ -112,15 +120,22 @@
                   </el-radio>
                 </template>
               </el-table-column>
-              <el-table-column label="审批单名称" prop="name" min-width="200" />
-              <el-table-column label="流程类型" min-width="180">
+              <el-table-column label="审批单信息" min-width="700">
                 <template #default="{ row }">
-                  {{ row.processDefinition?.name || row.processDefinitionName || '-' }}
-                </template>
-              </el-table-column>
-              <el-table-column label="状态" align="center" width="120">
-                <template #default="{ row }">
-                  {{ getStatusLabel(row.status) }}
+                  <div class="instance-cell">
+                    <div class="instance-name">{{ row.name || '--' }}</div>
+                    <div class="instance-line">
+                      流程类型：{{ row.processDefinition?.name || row.processDefinitionName || '--' }}
+                    </div>
+                    <div class="instance-line">状态：{{ getStatusLabel(row.status) }}</div>
+                    <div class="instance-line">发起人：{{ getStarterName(row) }}</div>
+                    <div class="instance-line">当前节点：{{ getCurrentTaskDisplay(row) }}</div>
+                    <div class="instance-line">
+                      发起时间：{{ formatDate(row.startTime || row.createTime) || '--' }}
+                    </div>
+                    <div class="instance-line">结束时间：{{ formatDate(row.endTime) || '--' }}</div>
+                    <div class="instance-line">字段信息：{{ getSummaryText(row.summary) }}</div>
+                  </div>
                 </template>
               </el-table-column>
             </el-table>
@@ -151,7 +166,9 @@
 import { CategoryApi, type CategoryVO } from '@/api/bpm/category'
 import * as DefinitionApi from '@/api/bpm/definition'
 import * as ProcessInstanceApi from '@/api/bpm/processInstance'
+import * as TaskApi from '@/api/bpm/task'
 import { BpmProcessInstanceStatus } from '@/utils/constants'
+import { formatDate } from '@/utils/formatTime'
 import { groupBy, uniqBy } from 'lodash-es'
 
 defineOptions({ name: 'RelatedProcessInstanceSelect' })
@@ -178,6 +195,8 @@ interface ProcessDefinitionGroup {
   categoryName: string
   definitions: ProcessDefinitionItem[]
 }
+
+type InstanceSource = 'done' | 'start' | 'copy'
 
 interface Props {
   modelValue?:
@@ -222,6 +241,7 @@ const activeCategoryCodes = ref<string[]>([])
 const dialogSelectedDefinitionKeys = ref<string[]>([])
 
 const processInstanceList = ref<any[]>([])
+const instanceSource = ref<InstanceSource>('start')
 const dialogSelectedInstanceId = ref<string>('')
 const dialogSelectedInstance = ref<any>()
 
@@ -232,7 +252,16 @@ const instancePagination = reactive({
   pageNo: 1,
   pageSize: 10
 })
+const PROCESS_INSTANCE_API_PAGE_SIZE = 100
 const PROCESS_INSTANCE_API_MAX_PAGE_SIZE = 200
+
+const normalizeApiPageSize = (value: unknown) => {
+  const size = Number(value)
+  if (Number.isNaN(size)) {
+    return PROCESS_INSTANCE_API_PAGE_SIZE
+  }
+  return Math.min(PROCESS_INSTANCE_API_MAX_PAGE_SIZE, Math.max(1, size))
+}
 
 const getQueryString = (value: unknown) => {
   const tempValue = Array.isArray(value) ? value[0] : value
@@ -365,7 +394,7 @@ const normalizeItem = (value: any): RelatedProcessInstanceItem | null => {
   if (typeof value !== 'object') {
     return {
       id: value,
-      name: `审批单 #${value}`
+      name: '审批单'
     }
   }
   const id = value.id ?? value.processInstanceId ?? value.value
@@ -374,7 +403,7 @@ const normalizeItem = (value: any): RelatedProcessInstanceItem | null => {
   }
   return {
     id,
-    name: value.name || value.processInstanceName || `审批单 #${id}`,
+    name: value.name || value.processInstanceName || '审批单',
     processDefinitionId: value.processDefinitionId,
     processDefinitionKey: value.processDefinitionKey || value.processDefinition?.key,
     processDefinitionName: value.processDefinitionName || value.processDefinition?.name,
@@ -408,7 +437,7 @@ const emitModelValue = () => {
 const buildRelatedItemFromInstance = (instance: any): RelatedProcessInstanceItem => {
   return {
     id: instance.id,
-    name: instance.name || `审批单 #${instance.id}`,
+    name: instance.name || '审批单',
     processDefinitionId: instance.processDefinitionId,
     processDefinitionKey: instance.processDefinition?.key || instance.processDefinitionKey,
     processDefinitionName: instance.processDefinition?.name || instance.processDefinitionName,
@@ -422,7 +451,7 @@ const loadProcessDefinitions = async () => {
   try {
     const [categoryData, definitionData] = await Promise.all([
       CategoryApi.getCategorySimpleList(),
-      DefinitionApi.getProcessDefinitionList({
+      DefinitionApi.getProcessDefinitionListAll({
         suspensionState: 1
       })
     ])
@@ -437,43 +466,106 @@ const loadProcessDefinitions = async () => {
   }
 }
 
+const normalizeInstanceRecord = (item: any) => {
+  if (!item) {
+    return null
+  }
+  const processInstance = item.processInstance || {}
+  const processDefinition = item.processDefinition || processInstance.processDefinition
+  const id = item.processInstanceId ?? processInstance.id ?? item.id
+  if (id === undefined || id === null || id === '') {
+    return null
+  }
+  return {
+    ...item,
+    id,
+    name: processInstance.name || item.processInstanceName || item.name || '审批单',
+    processDefinition,
+    processDefinitionId:
+      item.processDefinitionId || processDefinition?.id || processInstance.processDefinitionId,
+    processDefinitionKey:
+      item.processDefinitionKey || processDefinition?.key || processInstance.processDefinitionKey,
+    processDefinitionName:
+      item.processDefinitionName || processDefinition?.name || processInstance.processDefinitionName,
+    category: item.category || processInstance.category,
+    status: processInstance.status ?? item.processInstanceStatus ?? item.status,
+    summary: processInstance.summary || item.summary,
+    startUser: processInstance.startUser || item.startUser,
+    startUserNickname: processInstance.startUser?.nickname || item.startUserNickname,
+    startTime: processInstance.startTime || item.processInstanceStartTime || item.startTime,
+    createTime: processInstance.createTime || item.createTime,
+    endTime: processInstance.endTime || item.processInstanceEndTime || item.endTime,
+    tasks: processInstance.tasks || item.tasks || []
+  }
+}
+
+const fetchAllListByPage = async (requestFn: (pageNo: number, pageSize: number) => Promise<any>) => {
+  const apiPageSize = normalizeApiPageSize(PROCESS_INSTANCE_API_PAGE_SIZE)
+  let pageNo = 1
+  const allList: any[] = []
+  let total = 0
+
+  while (true) {
+    const data = await requestFn(pageNo, apiPageSize)
+    const list = data?.list || []
+    total = Number(data?.total || 0)
+    if (list.length > 0) {
+      allList.push(...list)
+    }
+
+    if (total > 0) {
+      if (allList.length >= total) {
+        break
+      }
+    } else if (list.length < apiPageSize) {
+      break
+    }
+
+    pageNo += 1
+    if (pageNo > 100) {
+      break
+    }
+  }
+
+  return allList
+}
+
 const loadProcessInstances = async () => {
   loadingProcessInstances.value = true
   try {
     const requestName = instanceQuery.name || undefined
-    let pageNo = 1
-    const allList: any[] = []
-    let total = 0
+    let rawList: any[] = []
 
-    while (true) {
-      const data = await ProcessInstanceApi.getProcessInstanceMyPage({
-        pageNo,
-        pageSize: PROCESS_INSTANCE_API_MAX_PAGE_SIZE,
-        name: requestName
-      })
-      const list = data?.list || []
-      total = Number(data?.total || 0)
-      if (list.length > 0) {
-        allList.push(...list)
-      }
-
-      // 有 total 时按 total 结束；否则按“本页不足 200 条”结束
-      if (total > 0) {
-        if (allList.length >= total) {
-          break
-        }
-      } else if (list.length < PROCESS_INSTANCE_API_MAX_PAGE_SIZE) {
-        break
-      }
-
-      pageNo += 1
-      // 兜底，避免异常场景死循环
-      if (pageNo > 100) {
-        break
-      }
+    if (instanceSource.value === 'done') {
+      rawList = await fetchAllListByPage((pageNo, pageSize) =>
+        TaskApi.getTaskDonePage({
+          pageNo,
+          pageSize,
+          name: requestName
+        })
+      )
+    } else if (instanceSource.value === 'copy') {
+      rawList = await fetchAllListByPage((pageNo, pageSize) =>
+        ProcessInstanceApi.getProcessInstanceCopyPage({
+          pageNo,
+          pageSize,
+          processInstanceName: requestName
+        })
+      )
+    } else {
+      rawList = await fetchAllListByPage((pageNo, pageSize) =>
+        ProcessInstanceApi.getProcessInstanceMyPage({
+          pageNo,
+          pageSize,
+          name: requestName
+        })
+      )
     }
 
-    processInstanceList.value = allList
+    const normalizedList = rawList
+      .map((item) => normalizeInstanceRecord(item))
+      .filter((item): item is Record<string, any> => !!item)
+    processInstanceList.value = uniqBy(normalizedList, (item) => String(item.id))
     instancePagination.pageNo = 1
   } catch {
     processInstanceList.value = []
@@ -484,6 +576,7 @@ const loadProcessInstances = async () => {
 }
 
 const resetDialogState = () => {
+  instanceSource.value = 'start'
   dialogSelectedDefinitionKeys.value = [...defaultFilterDefinitionKeys.value]
   activeCategoryCodes.value = []
   if (!props.multiple && selectedItems.value.length > 0) {
@@ -495,14 +588,20 @@ const resetDialogState = () => {
   }
 }
 
+const handleSourceChange = async () => {
+  dialogSelectedInstanceId.value = ''
+  dialogSelectedInstance.value = undefined
+  await loadProcessInstances()
+}
+
 const handleOpenDialog = async () => {
   if (props.disabled) {
     return
   }
   dialogVisible.value = true
   await loadProcessDefinitions()
-  await loadProcessInstances()
   resetDialogState()
+  await loadProcessInstances()
 }
 
 const handleAllDefinitionsChange = (checked: boolean) => {
@@ -636,6 +735,85 @@ const getStatusLabel = (status: number | undefined) => {
   }
 }
 
+const getStarterName = (row: any) => {
+  return row?.startUser?.nickname || row?.startUserNickname || '--'
+}
+
+const getCurrentTaskDisplay = (row: any) => {
+  if (row?.status !== BpmProcessInstanceStatus.RUNNING) {
+    return '--'
+  }
+  const tasks = Array.isArray(row?.tasks) ? row.tasks : []
+  if (tasks.length === 0) {
+    return '--'
+  }
+  const firstTask = tasks[0] || {}
+  const assigneeName =
+    firstTask?.assigneeUser?.nickname || firstTask?.assigneeNickname || firstTask?.ownerUser?.nickname || ''
+  const nodeName = firstTask?.name || ''
+  if (tasks.length === 1) {
+    if (assigneeName && nodeName) {
+      return `${assigneeName}(${nodeName})`
+    }
+    return assigneeName || nodeName || '--'
+  }
+  if (assigneeName && nodeName) {
+    return `${assigneeName}等${tasks.length}人(${nodeName})`
+  }
+  if (assigneeName) {
+    return `${assigneeName}等${tasks.length}人`
+  }
+  return nodeName || '--'
+}
+
+const normalizeSummaryValue = (value: any) => {
+  if (value === undefined || value === null || value === '') {
+    return '--'
+  }
+  if (typeof value === 'object') {
+    try {
+      return JSON.stringify(value)
+    } catch {
+      return String(value)
+    }
+  }
+  return String(value)
+}
+
+const getSummaryText = (summary: any) => {
+  if (!summary) {
+    return '--'
+  }
+
+  const pairList: string[] = []
+
+  if (Array.isArray(summary)) {
+    summary.forEach((item) => {
+      const key = item?.key || item?.label || item?.fieldName || ''
+      const value = normalizeSummaryValue(item?.value)
+      if (key) {
+        pairList.push(`${key}: ${value}`)
+      } else if (value !== '--') {
+        pairList.push(value)
+      }
+    })
+  } else if (typeof summary === 'object') {
+    Object.keys(summary).forEach((key) => {
+      pairList.push(`${key}: ${normalizeSummaryValue(summary[key])}`)
+    })
+  }
+
+  if (pairList.length === 0) {
+    return '--'
+  }
+
+  const maxCount = 6
+  if (pairList.length <= maxCount) {
+    return pairList.join('；')
+  }
+  return `${pairList.slice(0, maxCount).join('；')}...`
+}
+
 watch(
   () => props.modelValue,
   (value) => {
@@ -676,5 +854,21 @@ watch(
   border: 1px solid var(--el-border-color);
   border-radius: 8px;
   overflow: auto;
+}
+
+.instance-cell {
+  line-height: 1.5;
+  padding: 2px 0;
+}
+
+.instance-name {
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.instance-line {
+  margin-top: 2px;
+  color: var(--el-text-color-regular);
+  word-break: break-all;
 }
 </style>

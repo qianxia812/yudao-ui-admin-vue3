@@ -72,6 +72,10 @@ import DeptSelect from '@/components/FormCreate/src/components/DeptSelect.vue'
 import IframeComponent from '@/components/FormCreate/src/components/IframeComponent.vue'
 import AreaSelect from '@/components/FormCreate/src/components/AreaSelect.vue'
 import RelatedProcessInstanceSelect from '@/components/FormCreate/src/components/RelatedProcessInstanceSelect.vue'
+import RelatedFormSelect from '@/components/FormCreate/src/components/RelatedFormSelect.vue'
+import RelatedProjectSelect from '@/components/FormCreate/src/components/RelatedProjectSelect.vue'
+import AmountInput from '@/components/FormCreate/src/components/AmountInput.vue'
+import SignatureInput from '@/components/FormCreate/src/components/SignatureInput.vue'
 
 const UserSelect = useApiSelect({
   name: 'UserSelect',
@@ -119,7 +123,11 @@ const components = [
   Editor,
   IframeComponent,
   AreaSelect,
+  AmountInput,
+  SignatureInput,
   RelatedProcessInstanceSelect,
+  RelatedFormSelect,
+  RelatedProjectSelect,
   ElCollapse,
   ElCollapseItem,
   ElCard

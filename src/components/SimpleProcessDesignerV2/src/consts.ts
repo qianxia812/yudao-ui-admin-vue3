@@ -496,14 +496,14 @@ export type ConditionGroup = {
  * 条件组默认值
  */
 export const DEFAULT_CONDITION_GROUP_VALUE = {
-  and: true,
+  and: false,
   conditions: [
     {
-      and: true,
+      and: false,
       rules: [
         {
           opCode: '==',
-          leftSide: '',
+          leftSide: 'PROCESS_START_USER_ID',
           rightSide: ''
         }
       ]
@@ -617,6 +617,10 @@ export const COMPARISON_OPERATORS: DictDataVO = [
   {
     value: '!=',
     label: '不等于'
+  },
+  {
+    value: 'contains',
+    label: '包含'
   },
   {
     value: '>',

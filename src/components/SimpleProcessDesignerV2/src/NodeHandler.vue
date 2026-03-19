@@ -132,7 +132,7 @@ const addNode = (type: number) => {
       assignEmptyHandler: {
         type: AssignEmptyHandlerType.APPROVE
       },
-      assignStartUserHandlerType: AssignStartUserHandlerType.START_USER_AUDIT,
+      assignStartUserHandlerType: AssignStartUserHandlerType.SKIP,
       childNode: props.childNode,
       taskCreateListener: {
         enable: false

@@ -291,7 +291,7 @@ const resetCustomConfigList = () => {
   assignStartUserHandlerTypeEl.value =
     elExtensionElements.value.values?.filter(
       (ex) => ex.$type === `${prefix}:AssignStartUserHandlerType`
-    )?.[0] || bpmnInstances().moddle.create(`${prefix}:AssignStartUserHandlerType`, { value: 1 })
+    )?.[0] || bpmnInstances().moddle.create(`${prefix}:AssignStartUserHandlerType`, { value: 2 })
   assignStartUserHandlerType.value = assignStartUserHandlerTypeEl.value.value
 
   // 审批人拒绝时

@@ -211,7 +211,7 @@ export function useNodeForm(nodeType: NodeType) {
       approveMethod: ApproveMethodType.SEQUENTIAL_APPROVE,
       approveRatio: 100,
       rejectHandlerType: RejectHandlerType.FINISH_PROCESS,
-      assignStartUserHandlerType: AssignStartUserHandlerType.START_USER_AUDIT,
+      assignStartUserHandlerType: AssignStartUserHandlerType.SKIP,
       returnNodeId: '',
       timeoutHandlerEnable: false,
       timeoutHandlerType: 1,

@@ -429,7 +429,7 @@ const initData = () => {
     }
   }
   if (!modelData.value.autoApprovalType) {
-    modelData.value.autoApprovalType = BpmAutoApproveType.NONE
+    modelData.value.autoApprovalType = BpmAutoApproveType.APPROVE_ALL
   }
   if (!modelData.value.titleSetting) {
     modelData.value.titleSetting = {

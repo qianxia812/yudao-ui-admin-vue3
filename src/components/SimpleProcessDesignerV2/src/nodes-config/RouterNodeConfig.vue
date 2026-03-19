@@ -64,9 +64,16 @@
 </template>
 <script setup lang="ts">
 import { Plus } from '@element-plus/icons-vue'
-import { SimpleFlowNode, NodeType, ConditionType, RouterSetting } from '../consts'
+import {
+  SimpleFlowNode,
+  NodeType,
+  ConditionType,
+  RouterSetting,
+  DEFAULT_CONDITION_GROUP_VALUE
+} from '../consts'
 import { useWatchNode, useDrawer, useNodeName } from '../node'
 import Condition from './components/Condition.vue'
+import { cloneDeep } from 'lodash-es'
 
 defineOptions({
   name: 'RouterNodeConfig'
@@ -150,21 +157,7 @@ const addRouterGroup = () => {
     nodeId: '',
     conditionType: ConditionType.RULE,
     conditionExpression: '',
-    conditionGroups: {
-      and: true,
-      conditions: [
-        {
-          and: true,
-          rules: [
-            {
-              opCode: '==',
-              leftSide: '',
-              rightSide: ''
-            }
-          ]
-        }
-      ]
-    }
+    conditionGroups: cloneDeep(DEFAULT_CONDITION_GROUP_VALUE)
   })
 }
 

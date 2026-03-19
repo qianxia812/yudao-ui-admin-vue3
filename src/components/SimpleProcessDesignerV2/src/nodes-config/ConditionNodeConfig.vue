@@ -43,7 +43,7 @@
   </el-drawer>
 </template>
 <script setup lang="ts">
-import { SimpleFlowNode, ConditionType } from '../consts'
+import { SimpleFlowNode, ConditionType, DEFAULT_CONDITION_GROUP_VALUE } from '../consts'
 import { getDefaultConditionNodeName } from '../utils'
 import { useFormFieldsAndStartUser, getConditionShowText } from '../node'
 import Condition from './components/Condition.vue'
@@ -67,21 +67,7 @@ const currentNode = ref<SimpleFlowNode>(props.conditionNode)
 const condition = ref<any>({
   conditionType: ConditionType.RULE, // 设置默认值
   conditionExpression: '',
-  conditionGroups: {
-    and: true,
-    conditions: [
-      {
-        and: true,
-        rules: [
-          {
-            opCode: '==',
-            leftSide: '',
-            rightSide: ''
-          }
-        ]
-      }
-    ]
-  }
+  conditionGroups: cloneDeep(DEFAULT_CONDITION_GROUP_VALUE)
 })
 const open = () => {
   // 如果有已存在的配置则使用，否则使用默认值
@@ -92,21 +78,7 @@ const open = () => {
     condition.value = {
       conditionType: ConditionType.RULE,
       conditionExpression: '',
-      conditionGroups: {
-        and: true,
-        conditions: [
-          {
-            and: true,
-            rules: [
-              {
-                opCode: '==',
-                leftSide: '',
-                rightSide: ''
-              }
-            ]
-          }
-        ]
-      }
+      conditionGroups: cloneDeep(DEFAULT_CONDITION_GROUP_VALUE)
     }
   }
   settingVisible.value = true

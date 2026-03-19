@@ -75,7 +75,11 @@
                         trigger: 'change'
                       }"
                     >
-                      <el-select style="width: 160px" v-model="rule.leftSide">
+                      <el-select
+                        style="width: 160px"
+                        v-model="rule.leftSide"
+                        @change="handleLeftSideChange(rule)"
+                      >
                         <el-option
                           v-for="(field, fIdx) in fieldOptions"
                           :key="fIdx"
@@ -87,9 +91,9 @@
                     </el-form-item>
                   </div>
                   <div class="mr-2">
-                    <el-select v-model="rule.opCode" style="width: 100px">
+                    <el-select v-model="rule.opCode" style="width: 100px" @change="handleOpCodeChange(rule)">
                       <el-option
-                        v-for="operator in COMPARISON_OPERATORS"
+                        v-for="operator in getOperatorOptions(rule.leftSide)"
                         :key="operator.value"
                         :label="operator.label"
                         :value="operator.value"
@@ -105,7 +109,23 @@
                         trigger: 'blur'
                       }"
                     >
-                      <el-input v-model="rule.rightSide" style="width: 160px" />
+                      <el-input
+                        v-if="!isStartUserContainsRule(rule)"
+                        v-model="rule.rightSide"
+                        style="width: 160px"
+                      />
+                      <el-input
+                        v-else
+                        :model-value="getStartUserDisplayText(rule.rightSide)"
+                        style="width: 160px"
+                        readonly
+                        placeholder="点击选择人员"
+                        @click="openStartUserSelector(rule)"
+                      >
+                        <template #append>
+                          <el-button link @click="openStartUserSelector(rule)">选择</el-button>
+                        </template>
+                      </el-input>
                     </el-form-item>
                   </div>
                   <div
@@ -153,6 +173,7 @@
       <el-button @click="dialogVisible = false">取 消</el-button>
     </template>
   </Dialog>
+  <UserSelectForm ref="userSelectFormRef" @confirm="handleStartUserSelectConfirm" />
 </template>
 
 <script setup lang="ts">
@@ -161,11 +182,14 @@ import {
   CONDITION_CONFIG_TYPES,
   ConditionType,
   ConditionGroup,
-  DEFAULT_CONDITION_GROUP_VALUE
+  DEFAULT_CONDITION_GROUP_VALUE,
+  ProcessVariableEnum
 } from '../../consts'
 import { BpmModelFormType } from '@/utils/constants'
 import { useFormFieldsAndStartUser } from '../../node'
 import { cloneDeep } from 'lodash-es'
+import UserSelectForm from '@/components/UserSelectForm/index.vue'
+import * as UserApi from '@/api/system/user'
 defineOptions({
   name: 'ConditionDialog'
 })
@@ -199,6 +223,73 @@ const conditionConfigTypes = computed(() => {
 
 /** 条件规则可选择的表单字段 */
 const fieldOptions = useFormFieldsAndStartUser()
+const userOptions = inject<Ref<UserApi.UserVO[]>>('userList', ref([]))
+const userSelectFormRef = ref()
+const currentSelectRule = ref<any>()
+
+const getOperatorOptions = (leftSide: string) => {
+  if (leftSide === ProcessVariableEnum.START_USER_ID) {
+    return COMPARISON_OPERATORS
+  }
+  return COMPARISON_OPERATORS.filter((item: any) => item.value !== 'contains')
+}
+
+const isStartUserContainsRule = (rule: any) => {
+  return rule?.leftSide === ProcessVariableEnum.START_USER_ID && rule?.opCode === 'contains'
+}
+
+const parseStartUserIds = (rightSide?: string): number[] => {
+  if (!rightSide) {
+    return []
+  }
+  return rightSide
+    .split(',')
+    .map((item) => Number(item))
+    .filter((item) => !Number.isNaN(item))
+}
+
+const getSelectedStartUsers = (rightSide?: string): UserApi.UserVO[] => {
+  const userIds = new Set(parseStartUserIds(rightSide))
+  return userOptions.value.filter((user) => userIds.has(user.id))
+}
+
+const getStartUserDisplayText = (rightSide?: string) => {
+  const users = getSelectedStartUsers(rightSide)
+  if (users.length <= 0) {
+    return rightSide || ''
+  }
+  return users.map((user) => user.nickname).join(',')
+}
+
+const openStartUserSelector = (rule: any) => {
+  currentSelectRule.value = rule
+  userSelectFormRef.value?.open(0, getSelectedStartUsers(rule.rightSide))
+}
+
+const handleStartUserSelectConfirm = (_id: number, users: UserApi.UserVO[]) => {
+  if (!currentSelectRule.value) {
+    return
+  }
+  currentSelectRule.value.rightSide = users.map((user) => user.id).join(',')
+}
+
+const handleLeftSideChange = (rule: any) => {
+  if (rule.leftSide !== ProcessVariableEnum.START_USER_ID && rule.opCode === 'contains') {
+    rule.opCode = '=='
+    rule.rightSide = ''
+  }
+}
+
+const handleOpCodeChange = (rule: any) => {
+  if (rule.opCode !== 'contains') {
+    return
+  }
+  if (rule.leftSide !== ProcessVariableEnum.START_USER_ID) {
+    rule.opCode = '=='
+    return
+  }
+  openStartUserSelector(rule)
+}
 
 // 表单校验规则
 const formRules = reactive({
@@ -207,12 +298,27 @@ const formRules = reactive({
 })
 const formRef = ref() // 表单 Ref
 
+const normalizeConditionRules = () => {
+  const conditionGroups = condition.value?.conditionGroups?.conditions
+  if (!conditionGroups || !Array.isArray(conditionGroups)) {
+    return
+  }
+  conditionGroups.forEach((group) => {
+    group?.rules?.forEach((rule) => {
+      if (!rule.leftSide) {
+        rule.leftSide = ProcessVariableEnum.START_USER_ID
+      }
+    })
+  })
+}
+
 /** 切换条件配置方式 */
 const changeConditionType = () => {
   if (condition.value.conditionType === ConditionType.RULE) {
     if (!condition.value.conditionGroups) {
       condition.value.conditionGroups = cloneDeep(DEFAULT_CONDITION_GROUP_VALUE)
     }
+    normalizeConditionRules()
   }
 }
 const deleteConditionGroup = (conditions, index) => {
@@ -226,7 +332,7 @@ const deleteConditionRule = (condition, index) => {
 const addConditionRule = (condition, index) => {
   const rule = {
     opCode: '==',
-    leftSide: '',
+    leftSide: ProcessVariableEnum.START_USER_ID,
     rightSide: ''
   }
   condition.rules.splice(index + 1, 0, rule)
@@ -234,11 +340,11 @@ const addConditionRule = (condition, index) => {
 
 const addConditionGroup = (conditions) => {
   const condition = {
-    and: true,
+    and: false,
     rules: [
       {
         opCode: '==',
-        leftSide: '',
+        leftSide: ProcessVariableEnum.START_USER_ID,
         rightSide: ''
       }
     ]
@@ -266,6 +372,7 @@ const open = (conditionObj: any | undefined) => {
     condition.value.conditionExpression = conditionObj.conditionExpression
     condition.value.conditionGroups = conditionObj.conditionGroups
   }
+  normalizeConditionRules()
   dialogVisible.value = true
 }
 

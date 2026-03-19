@@ -165,7 +165,7 @@ const formData: any = ref({
     postfix: '',
     length: 5
   },
-  autoApprovalType: BpmAutoApproveType.NONE,
+  autoApprovalType: BpmAutoApproveType.APPROVE_ALL,
   titleSetting: {
     enable: false,
     title: ''
